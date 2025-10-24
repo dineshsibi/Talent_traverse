@@ -398,19 +398,13 @@ async function downloadAllForms() {
     if (loadingIndicator) loadingIndicator.style.display = 'flex';
 
     try {
+        // Get all forms to download
+        const formsToDownload = [];
+        
+        // Get all form containers
         const forms = document.querySelectorAll('#all-forms-content .form-container');
-        const totalForms = forms.length;
-        if (totalForms === 0) {
-            alert('No forms found to download');
-            return;
-        }
-
-        const progressEl = showDownloadProgress(0, totalForms);
-
-        for (let i = 0; i < forms.length; i++) {
-            const form = forms[i];
-
-            // Prefer explicit data attributes
+        
+        forms.forEach(form => {
             const dataset = form.dataset || {};
             let principalEmployer = (dataset.principal || '').trim();
             let state = (dataset.state || '').trim();
@@ -429,20 +423,95 @@ async function downloadAllForms() {
                 principalEmployer = dashParts.join('-').replace(/-/g, ' ').trim();
             }
 
-            updateDownloadProgress(progressEl, i + 1, totalForms, formId, locationCode);
+            if (formId && state && locationCode) {
+                formsToDownload.push({
+                    formElement: form,
+                    formId: formId,
+                    principalEmployer: principalEmployer,
+                    state: state,
+                    locationCode: locationCode
+                });
+            }
+        });
 
+        const totalForms = formsToDownload.length;
+        if (totalForms === 0) {
+            alert('No forms found to download');
+            return;
+        }
+
+        console.log('Forms to download:', formsToDownload);
+        showDownloadProgress(0, totalForms);
+
+        // Process forms sequentially and collect server paths
+        const serverPaths = [];
+
+        for (let i = 0; i < formsToDownload.length; i++) {
+            const item = formsToDownload[i];
             try {
-                const success = await downloadForm(formId, principalEmployer, state, locationCode, form);
-                if (!success) {
-                    console.error(`Failed to download form: ${formId}`);
+                console.log(`Processing form ${i + 1}/${totalForms}:`, item);
+                const result = await downloadForm(
+                    item.formId, 
+                    item.principalEmployer, 
+                    item.state, 
+                    item.locationCode, 
+                    item.formElement
+                );
+                
+                showDownloadProgress(i + 1, totalForms, item.formId, item.locationCode);
+
+                if (result && result.success && result.server_relative_path) {
+                    serverPaths.push(result.server_relative_path);
+                    console.log(`✓ PDF generated: ${result.server_relative_path}`);
+                } else {
+                    console.warn('✗ Failed to generate PDF for', item, result?.message);
                 }
-                await new Promise(r => setTimeout(r, 300));
-            } catch (err) {
-                console.error('Error processing form:', err);
+                
+                await new Promise(r => setTimeout(r, 300)); // Small delay between requests
+            } catch (error) {
+                console.error('Error processing form', item, error);
             }
         }
 
-        showDownloadComplete(progressEl);
+        console.log('All PDF processing completed. Files:', serverPaths);
+
+        if (serverPaths.length === 0) {
+            alert('Failed to generate any PDFs.');
+            return;
+        }
+
+        // Create ZIP file
+        console.log('Calling create_zip.php with', serverPaths.length, 'files');
+
+        const zipRes = await createZipOnServer(
+            serverPaths,
+            formStateData.clientName,
+            formStateData.monthYear || ''
+        );
+
+        console.log('ZIP creation response:', zipRes);
+
+        if (zipRes && zipRes.success && zipRes.zip_url) {
+            // Create temporary download link for ZIP file
+            const a = document.createElement('a');
+            a.href = zipRes.zip_url;
+            a.download = zipRes.zip_filename || 'clra_forms_bundle.zip';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            showDownloadComplete();
+            
+            // Optional: Clean up the server ZIP file after download
+            setTimeout(() => {
+                cleanupServerZip(zipRes.zip_path);
+            }, 5000);
+        } else {
+            const errorMsg = zipRes?.message || 'Unknown error during ZIP creation';
+            alert('Failed to create ZIP: ' + errorMsg);
+            console.error('Zip creation failed:', zipRes);
+        }
+
     } catch (err) {
         console.error('Download error:', err);
         alert('An error occurred during download. Check the console.');
@@ -450,6 +519,12 @@ async function downloadAllForms() {
         downloadBtn.disabled = false;
         downloadBtn.textContent = originalText;
         if (loadingIndicator) loadingIndicator.style.display = 'none';
+        
+        // Clean up progress popup
+        setTimeout(() => {
+            const progress = document.getElementById('download-progress-popup');
+            if (progress) document.body.removeChild(progress);
+        }, 1500);
     }
 }
 
@@ -458,104 +533,125 @@ async function downloadForm(formId, principalEmployer, state, locationCode, form
     clone.style.width = '100%';
     clone.style.overflow = 'visible';
 
-    // wrap with full HTML + styles
-    const htmlContent = buildHtmlForPdf(clone.outerHTML);
-
     try {
+        const payload = {
+            formId: formId,
+            state: state,
+            clientName: formStateData.clientName,
+            principalEmployer: principalEmployer,
+            locationCode: locationCode,
+            monthYear: formStateData.monthYear,
+            htmlContent: clone.outerHTML
+        };
+
+        console.log('Saving CLRA PDF for:', formId, state, locationCode);
         const response = await fetch('save_pdf1.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                formId: formId,
-                state: state,
-                clientName: formStateData.clientName,
-                principalEmployer: principalEmployer,
-                locationCode: locationCode,
-                monthYear: formStateData.monthYear,
-                htmlContent: htmlContent
-            })
+            body: JSON.stringify(payload)
         });
 
         const result = await response.json();
-
-        if (result.success) {
-            const filename = result.filename || (result.path ? result.path.split('/').pop() : ('form_' + Date.now() + '.pdf'));
-            const publicPath = result.publicPath || (result.folderStructure ? ('downloads/' + result.folderStructure + '/' + filename) : ('downloads/' + filename));
-
-            const downloadLink = document.createElement('a');
-            downloadLink.href = publicPath;
-            downloadLink.download = filename;
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-
-            return true;
-        } else {
-            console.error('Error from server:', result.message || result);
-            return false;
-        }
+        console.log('Save CLRA PDF response:', result);
+        return result;
+        
     } catch (error) {
-        console.error("Network/JS Error:", error);
-        return false;
+        console.error("Error in downloadForm:", error);
+        return { success: false, message: error.message || 'Fetch failed' };
     }
 }
 
-/* Helper: wrap HTML for PDF */
-function buildHtmlForPdf(innerContent) {
-    const styles = `
-      <style>
-        body { font-family: "Times New Roman", serif; font-size: 12px; }
-        table { width: 100%; border-collapse: collapse; }
-        td, th { border: 1px solid #000; padding: 5px; vertical-align: top; }
-        .form-container { margin-bottom: 15px; }
-        h1, h2, h3, h4, h5 { margin: 5px 0; }
-      </style>
-    `;
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          ${styles}
-        </head>
-        <body>
-          ${innerContent}
-        </body>
-      </html>
-    `;
+async function createZipOnServer(filePaths, clientName, folderMonthYear) {
+    try {
+        console.log('Creating ZIP with files:', filePaths);
+
+        const response = await fetch('create_zip.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                files: filePaths,
+                clientName,
+                folderMonthYear
+            })
+        });
+
+        if (!response || !response.ok) {
+            throw new Error('Server response error');
+        }
+
+        const result = await response.json();
+        console.log('ZIP creation result:', result);
+        return result;
+    } catch (err) {
+        console.error('createZipOnServer error:', err);
+        return { success: false, message: err.message || 'Zip request failed' };
+    }
 }
 
-/* small UI helpers */
-function showDownloadProgress(current, total) {
-    const progress = document.createElement('div');
-    progress.id = 'download-progress-popup';
-    progress.style.position = 'fixed';
-    progress.style.top = '20px';
-    progress.style.right = '20px';
-    progress.style.backgroundColor = '#2196F3';
-    progress.style.color = 'white';
-    progress.style.padding = '15px';
-    progress.style.borderRadius = '5px';
-    progress.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-    progress.style.zIndex = '10000';
-    progress.textContent = `Preparing to download ${total} forms...`;
-    document.body.appendChild(progress);
+function showDownloadProgress(current, total, formId = '', locationCode = '') {
+    let progress = document.getElementById('download-progress-popup');
+
+    if (!progress) {
+        progress = document.createElement('div');
+        progress.id = 'download-progress-popup';
+        progress.style.position = 'fixed';
+        progress.style.top = '20px';
+        progress.style.right = '20px';
+        progress.style.backgroundColor = '#2196F3';
+        progress.style.color = 'white';
+        progress.style.padding = '15px';
+        progress.style.borderRadius = '5px';
+        progress.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+        progress.style.zIndex = '10000';
+        document.body.appendChild(progress);
+    }
+
+    if (formId && locationCode) {
+        progress.textContent = `Processing ${current}/${total}: ${formId} — ${locationCode}`;
+    } else {
+        progress.textContent = `Generating PDFs... ${current} of ${total}`;
+    }
+    
     return progress;
 }
 
-function updateDownloadProgress(progressElement, current, total, formId, locationCode) {
-    if (progressElement) {
-        progressElement.textContent = `Processing ${current}/${total}: ${formId} — ${locationCode}`;
-    }
+function showDownloadComplete() {
+    const popup = document.createElement('div');
+    popup.style.position = 'fixed';
+    popup.style.top = '20px';
+    popup.style.right = '20px';
+    popup.style.backgroundColor = '#4CAF50';
+    popup.style.color = 'white';
+    popup.style.padding = '15px';
+    popup.style.borderRadius = '5px';
+    popup.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+    popup.style.zIndex = '10000';
+    popup.style.transition = 'opacity 0.5s';
+    popup.textContent = 'All CLRA forms processed — ZIP ready for download.';
+
+    document.body.appendChild(popup);
+
+    setTimeout(() => {
+        popup.style.opacity = '0';
+        setTimeout(() => {
+            if (popup.parentNode) document.body.removeChild(popup);
+        }, 500);
+    }, 3000);
 }
 
-function showDownloadComplete(progressElement) {
-    if (progressElement) {
-        progressElement.style.backgroundColor = '#4CAF50';
-        progressElement.textContent = 'All forms downloaded successfully!';
-        setTimeout(() => {
-            progressElement.style.opacity = '0';
-            setTimeout(() => { if (progressElement.parentNode) progressElement.parentNode.removeChild(progressElement); }, 500);
-        }, 2000);
+// Optional: Clean up server ZIP files after download
+async function cleanupServerZip(zipPath) {
+    try {
+        const response = await fetch('cleanup_zip.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ zip_path: zipPath })
+        });
+        const result = await response.json();
+        if (result.success) {
+            console.log('Server ZIP file cleaned up');
+        }
+    } catch (error) {
+        console.log('Cleanup not essential, continuing...');
     }
 }

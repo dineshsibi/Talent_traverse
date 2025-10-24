@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 
 header('Content-Type: application/json');
+ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
 // ----------------- PARSE INPUT -----------------
@@ -13,7 +14,7 @@ if ($input === null) {
 }
 
 // Required fields
-$required = ['formId', 'state', 'clientName', 'principalEmployer', 'locationCode', 'monthYear'];
+$required = ['formId', 'state', 'clientName', 'principalEmployer', 'locationCode', 'monthYear', 'htmlContent'];
 foreach ($required as $field) {
     if (!isset($input[$field]) || $input[$field] === '') {
         echo json_encode(['success' => false, 'message' => "Missing required field: $field"]);
@@ -21,93 +22,89 @@ foreach ($required as $field) {
     }
 }
 
-// Optional: htmlContent (pre-rendered HTML from the page)
-$postedHtml = isset($input['htmlContent']) && is_string($input['htmlContent'])
-    ? trim($input['htmlContent'])
-    : '';
+$formId = $input['formId'] ?? 'unknown_form';
+$state = $input['state'] ?? '';
+$clientName = $input['clientName'] ?? '';
+$principalEmployer = $input['principalEmployer'] ?? '';
+$locationCode = $input['locationCode'] ?? '';
+$htmlContent = $input['htmlContent'] ?? '';
+$monthYear = $input['monthYear'] ?? '';
 
-// ----------------- HELPERS -----------------
-function sanitize_for_path($str)
+if (!$htmlContent || !$state || !$clientName || !$principalEmployer || !$locationCode || !$monthYear) {
+    echo json_encode(['success' => false, 'message' => 'Missing required data']);
+    exit;
+}
+
+// ---- helper to count max table columns (handles colspan) ----
+function get_max_table_columns(string $html): int
 {
+    $max = 0;
+    $html = '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">' . $html;
+
+    $dom = new DOMDocument();
+    libxml_use_internal_errors(true);
+    $dom->loadHTML($html);
+    libxml_clear_errors();
+
+    $xpath = new DOMXPath($dom);
+    foreach ($xpath->query('//table') as $table) {
+        foreach ($xpath->query('.//tr', $table) as $tr) {
+            $count = 0;
+            foreach ($xpath->query('.//th|.//td', $tr) as $cell) {
+                /** @var DOMElement $cell */
+                $colspan = (int) $cell->getAttribute('colspan');
+                $count += $colspan > 0 ? $colspan : 1;
+            }
+
+            if ($count > $max) $max = $count;
+        }
+    }
+    return $max;
+}
+
+// ---- decide page format based on detected columns ----
+$maxCols = get_max_table_columns($htmlContent);
+
+// Force A3 for specific known-wide forms
+$forceA3 = ['form-musterroll', 'form-attendance-register'];
+if (in_array($formId, $forceA3, true)) {
+    $maxCols = max($maxCols, 99);
+}
+
+$paperFormat = 'A4';
+$paperOrientation = 'P';
+$baseFontSize = 10;
+
+// If too many columns, use A3 Landscape
+if ($maxCols >= 10) {
+    $paperFormat = 'A3';
+    $paperOrientation = 'L';
+    $baseFontSize = 9;
+}
+
+// Sanitize inputs
+function sanitize_for_path($str) {
     $str = trim($str);
     $str = str_replace(['\\', '/', ':', '*', '?', '"', '<', '>', '|'], '', $str);
     $str = preg_replace('/\s+/', ' ', $str);
     return $str;
 }
-function sanitize_for_filename($str)
-{
-    return str_replace(' ', '_', sanitize_for_path($str));
-}
 
-// ----------------- VARIABLES -----------------
-$clientName        = sanitize_for_path($input['clientName']);
-$principalEmployer = sanitize_for_path($input['principalEmployer']);
-$state             = ucfirst(strtolower(sanitize_for_path($input['state'])));
-$locationCode      = sanitize_for_path($input['locationCode']);
-$formId            = $input['formId'];
-$monthYear         = $input['monthYear'];
+$state = sanitize_for_path($state);
+$clientName = sanitize_for_path($clientName);
+$principalEmployer = sanitize_for_path($principalEmployer);
+$locationCode = sanitize_for_path($locationCode);
 
-// ----------------- FORM TEMPLATE MAP -----------------
-$formMappingFile = __DIR__ . '/config/form_mapping1.php';
-if (!file_exists($formMappingFile)) {
-    echo json_encode(['success' => false, 'message' => 'Mapping file not found']);
-    exit;
-}
-$stateFormMapping = include($formMappingFile);
+$folderMonthYear = '';
+$filenameMonthYear = '';
 
-// ----------------- BUILD HTML -----------------
-$globalCSS = "
-    <style>
-        * { font-family: 'Times New Roman', Times, serif !important; }
-        body { font-size: 12px; margin: 15px; }
-        table { border-collapse: collapse; width: 100%; margin-bottom: 15px; }
-        th, td { border: 1px solid #000; padding: 6px; text-align: left; vertical-align: top; }
-        th { background-color: #f5f5f5; }
-        h1, h2, h3, h4, h5 { font-family: 'Times New Roman', Times, serif !important; margin: 6px 0; }
-        .form-container { width: 100%; }
-    </style>
-";
-
-// Prefer the exact HTML sent by JS (already includes its own <html> + <body> + styles)
-if ($postedHtml !== '') {
-    // If user-sent HTML is just inner content (no <html>), wrap it
-    if (stripos($postedHtml, '<html') === false) {
-        $postedHtml = "<!doctype html><html><head><meta charset='UTF-8'>{$globalCSS}</head><body>{$postedHtml}</body></html>";
+if ($monthYear) {
+    $dt = DateTime::createFromFormat('Y-m-d', $monthYear . '-01');
+    if ($dt) {
+        $dt->setTime(0, 0, 0);
+        $folderMonthYear = $dt->format('F Y');
+        $filenameMonthYear = $dt->format('F_Y');
     }
-    $html = $postedHtml;
-} else {
-    // Fallback: render from template (single form), ensuring variables match what templates expect
-    if (!isset($stateFormMapping[$state][$formId])) {
-        echo json_encode(['success' => false, 'message' => "Form template not found for $state / $formId"]);
-        exit;
-    }
-
-    $formData = [
-        'clientName'        => $clientName,
-        'principalEmployer' => $principalEmployer,
-        'state'             => $state,
-        'locationCode'      => $locationCode,
-        'monthYear'         => $monthYear
-    ];
-
-    // Make data available as local variables: $clientName, $principalEmployer, $state, $locationCode, $monthYear
-    extract($formData, EXTR_OVERWRITE);
-
-    ob_start();
-    include $stateFormMapping[$state][$formId];
-    $templateOut = ob_get_clean();
-
-    if (trim($templateOut) === '') {
-        // very last resort: simple table
-        $templateOut = "<h2>Form Data</h2><table>";
-        foreach ($formData as $k => $v) {
-            $templateOut .= "<tr><th>" . htmlspecialchars($k) . "</th><td>" . htmlspecialchars($v) . "</td></tr>";
-        }
-        $templateOut .= "</table>";
-    }
-
-    // Wrap with our CSS
-    $html = "<!doctype html><html><head><meta charset='UTF-8'>{$globalCSS}</head><body>{$templateOut}</body></html>";
 }
 
 // ----------------- FILE / PATH GENERATION (unchanged) -----------------
@@ -512,78 +509,99 @@ $formNames = [
 
 $readableFormName = $formNames[$state][$formId] ?? $formId;
 
-// Parse month/year for folder/file
-try {
-    $dt = new DateTime($monthYear);
-    $folderMonthYear = $dt->format('F Y');
-    $fileYearMonth   = $dt->format('F_Y');
-} catch (Exception $e) {
-    $folderMonthYear = sanitize_for_path($monthYear);
-    $fileYearMonth   = preg_replace('/\s+/', '_', $folderMonthYear);
-}
+// Define paths - Save to project downloads folder
+$basePath = __DIR__ . '/../downloads/';
+$targetPath = $basePath . "{$clientName}/{$principalEmployer}/{$state}/{$locationCode}/{$folderMonthYear}/";
 
-// Determine system downloads folder
-if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-    $baseDir = getenv('USERPROFILE') ?: (getenv('HOMEDRIVE') . getenv('HOMEPATH'));
-} else {
-    $baseDir = getenv('HOME') ?: __DIR__;
-}
-$baseDir = rtrim($baseDir, DIRECTORY_SEPARATOR);
-
-// Build target directory (unchanged)
-$pathParts = [
-    $baseDir,
-    'Downloads',
-    $clientName,
-    $principalEmployer,
-    $state,
-    $locationCode,
-    $folderMonthYear
-];
-$targetDir = implode(DIRECTORY_SEPARATOR, $pathParts);
-
-if (!is_dir($targetDir)) {
-    if (!mkdir($targetDir, 0755, true)) {
-        echo json_encode(['success' => false, 'message' => "Failed to create directory: $targetDir"]);
+// Ensure the directory exists
+if (!is_dir($targetPath)) {
+    if (!mkdir($targetPath, 0755, true)) {
+        echo json_encode(['success' => false, 'message' => 'Failed to create target directory: ' . $targetPath]);
         exit;
     }
 }
 
-// Filename (unchanged)
-$filename = sprintf(
-    '%s_%s_%s.pdf',
-    sanitize_for_filename($state),
-    sanitize_for_filename($readableFormName),
-    $fileYearMonth
-);
-$fullPath = $targetDir . DIRECTORY_SEPARATOR . $filename;
+$filename = "{$state}_{$readableFormName}_{$filenameMonthYear}.pdf";
+$filepath = $targetPath . $filename;
 
-// ----------------- GENERATE PDF -----------------
+// Server relative path for ZIP creation (relative to downloads folder)
+$server_relative_path = "{$clientName}/{$principalEmployer}/{$state}/{$locationCode}/{$folderMonthYear}/{$filename}";
+
 try {
     $mpdf = new \Mpdf\Mpdf([
-        'mode'          => 'utf-8',
-        'format'        => 'A4',
-        'margin_left'   => 10,
-        'margin_right'  => 10,
-        'margin_top'    => 10,
+        'mode' => 'utf-8',
+        'format' => $paperFormat,
+        'orientation' => $paperOrientation,
+        'margin_left' => 10,
+        'margin_right' => 10,
+        'margin_top' => 10,
         'margin_bottom' => 10,
-        'default_font'  => 'times',
-        'tempDir'       => sys_get_temp_dir()
+        'default_font_size' => $baseFontSize,
+        'default_font' => 'timesnewroman',
+        'autoScriptToLang' => true,
+        'autoLangToFont' => true,
+        'tempDir' => __DIR__ . '/tmp',
+        'useSubstitutions' => false,
+        'simpleTables' => false,
+        'packTableData' => true,
+        'ignore_table_percents' => false,
+        'ignore_table_widths' => false,
     ]);
 
-    // Helpful when debugging images/HTML
-    // $mpdf->showImageErrors = true;
+    // metadata
+    $mpdf->SetTitle("{$state} - {$readableFormName}");
+    $mpdf->SetAuthor($clientName);
+    $mpdf->SetCreator('Compliance Forms Generator');
 
-    $mpdf->WriteHTML($html, \Mpdf\HTMLParserMode::DEFAULT_MODE);
-    $mpdf->Output($fullPath, \Mpdf\Output\Destination::FILE);
+    // base styles
+    $baseCss = '
+        .left-align { text-align: left !important; }
+        .info-cell { text-align: left !important; padding-left: 5px !important; }
+        th, td { text-align: left !important; }
+        table { border-collapse: collapse; }
+    ';
+    $mpdf->WriteHTML($baseCss, \Mpdf\HTMLParserMode::HEADER_CSS);
+
+    // tighter spacing when A3-L to fit more columns nicely
+    if ($paperFormat === 'A3' && $paperOrientation === 'L') {
+        $a3Css = '
+            th, td { padding: 3px 4px !important; }
+            body { font-size: 9px !important; }
+        ';
+        $mpdf->WriteHTML($a3Css, \Mpdf\HTMLParserMode::HEADER_CSS);
+    }
+
+    // content
+    $mpdf->WriteHTML($htmlContent);
+
+    // save
+    $mpdf->Output($filepath, \Mpdf\Output\Destination::FILE);
+
+    // Debug logging
+    if (file_exists($filepath)) {
+        error_log("✓ CLRA File successfully saved at: " . $filepath);
+        error_log("✓ CLRA File size: " . filesize($filepath) . " bytes");
+    } else {
+        error_log("✗ CLRA File NOT saved at: " . $filepath);
+    }
 
     echo json_encode([
-        'success'         => true,
-        'message'         => 'PDF generated successfully',
-        'path'            => $fullPath,
-        'folderStructure' => str_replace($baseDir . DIRECTORY_SEPARATOR, '', $targetDir),
-        'filename'        => basename($fullPath)
+        'success' => true,
+        'path' => $filepath,
+        'server_relative_path' => $server_relative_path,
+        'filename' => $filename,
+        'detected_columns' => $maxCols,
+        'paper' => $paperFormat . '-' . $paperOrientation,
+        'folder_month' => $folderMonthYear,
+        'file_exists' => file_exists($filepath),
+        'actual_path' => $filepath
     ]);
-} catch (\Mpdf\MpdfException $e) {
-    echo json_encode(['success' => false, 'message' => 'PDF generation failed: ' . $e->getMessage()]);
+    exit;
+} catch (\Exception $e) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'PDF generation failed: ' . $e->getMessage()
+    ]);
+    exit;
 }
+?>
