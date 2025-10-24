@@ -174,12 +174,12 @@ try {
 
     // Build web-accessible URL for the ZIP file
 
-    $zipUrl = '/downloads/_zips/' . $zipFilename; // Full path from root
+    $zipUrl = '/Talent_traverse/downloads/_zips/' . $zipFilename; // Full path from root
 
     // Or if that doesn't work, try absolute URL:
     $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'];
-    $zipUrl = $protocol . '://' . $host . '/downloads/_zips/' . $zipFilename;
+    $zipUrl = $protocol . '://' . $host . '/Talent_traverse/downloads/_zips/' . $zipFilename;
 
     echo json_encode([
         'success' => true,
