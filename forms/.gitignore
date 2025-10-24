@@ -1,0 +1,13 @@
+# Ignore composer dependencies
+/vendor/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore VS Code settings
+.vscode/
+
+# Ignore logs, environment and cache
+*.log
+.env

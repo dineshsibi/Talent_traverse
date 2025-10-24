@@ -1,0 +1,214 @@
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__.'/../../../includes/functions.php';
+
+// Load database connection
+$configPath = __DIR__.'/../../../includes/config.php';
+if (!file_exists($configPath)) {
+    die("Database configuration not found");
+}
+$pdo = require($configPath); // This gets the PDO connection from config.php
+
+// Verify filter criteria exists
+if (!isset($_SESSION['filter_criteria'])) {
+    die("No filter criteria found. Please start from the search page.");
+}
+
+$filters = $_SESSION['filter_criteria'];
+$currentLocation = $_SESSION['current_location'] ?? '';
+$currentState = 'West Bengal'; // Hardcoded for this state template
+
+try {
+    // Build the SQL query with parameters
+    $sql = "SELECT * FROM input 
+            WHERE client_name = :client_name
+            AND state LIKE :state
+            AND location_code = :location_code";
+    
+    // Add month/year filter if specified
+    if (!empty($filters['month']) && !empty($filters['year'])) {
+        $sql .= " AND month = :month AND year = :year";
+    }
+    
+    // Prepare and execute query
+    $stmt = $pdo->prepare($sql);
+    
+    // Bind parameters
+    $stmt->bindValue(':client_name', $filters['client_name']);
+    $stmt->bindValue(':state', "%$currentState%");
+    $stmt->bindValue(':location_code', $currentLocation);
+    
+    if (!empty($filters['month']) && !empty($filters['year'])) {
+        $stmt->bindValue(':month', $filters['month']);
+        $stmt->bindValue(':year', $filters['year']);
+    }
+    
+    $stmt->execute();
+    $stateData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+   $first_row = !empty($stateData) ? reset($stateData) : [];
+
+    $client_name = safe($filters['client_name'] ?? '');
+    $month = safe($filters['month'] ?? '');
+    $year = safe($filters['year'] ?? '');
+
+
+$branch_address = $first_row['branch_address'] ?? '';
+
+} catch (PDOException $e) {
+        die("Database error: " . $e->getMessage());
+    }
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Times New Roman', Times, serif; margin: 20px; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; table-layout: fixed; }
+        th, td { border: 1px solid #000; padding: 4px; text-align: center; min-width: 20px; word-wrap: break-word; }
+        th { background-color: #ffffffff; font-weight: bold; }
+        .left-align { text-align: left; }
+        .form-header-cell { text-align: center; font-weight: bold; font-size: 14px; padding: 8px; }
+        .label{
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<table>
+    <!-- Form Header Row (colspan = 39 exactly) -->
+    <tr>
+        <td colspan="37" class="form-header-cell">
+            FORM I(1) <br>
+            The West Bengal Shops and Establishments Rules, 1964, [See Rule 13] <br>
+            Register of Daily Hours of work and rest intervals of persons employed 
+        </td>
+    </tr>
+
+    <!-- Establishment Info -->
+    <tr>
+        <td colspan="12" class="label" style="text-align: left;">Name and Address of Shop/Establishment, if any</td>
+        <td colspan="25" style="text-align: left;"><?= htmlspecialchars($client_name . ' , ' . $branch_address) ?></td>
+    </tr>
+    <tr>
+        <th colspan="12" class="label" style="text-align: left;">Name of Shop-keeper/employer</th>
+        <td colspan="25" style="text-align: left;"><?= htmlspecialchars($first_row['employer_name'] ?? '') ?></td>
+    </tr>
+    <tr>
+        <th colspan="12" class="label" style="text-align: left;">Address in full:</th>
+        <td colspan="25" style="text-align: left;"><?= htmlspecialchars($first_row['employer_address'] ?? '') ?></td>
+    </tr>
+    <tr>
+        <th colspan="12" class="label" style="text-align: left;">Registration. No</th>
+        <td colspan="25" style="text-align: left;">-</td>
+    </tr>
+    <tr>
+        <td colspan="12" class="label" style="text-align: left;">Shop/establishment opens at</td>
+        <td colspan="25" style="text-align: left;">-</td>
+    </tr>
+
+    <!-- Table Header Row -->
+    <tr>
+        <th>S.No.</th>
+        <th>Employee Code</th>
+        <th>Employee Name</th>
+        <th>Employment to commence</th>
+        <th>Interval for rest</th>
+        <th>Employment to cease</th>
+        <th>1</th>
+        <th>2</th>
+        <th>3</th>
+        <th>4</th>
+        <th>5</th>
+        <th>6</th>
+        <th>7</th>
+        <th>8</th>
+        <th>9</th>
+        <th>10</th>
+        <th>11</th>
+        <th>12</th>
+        <th>13</th>
+        <th>14</th>
+        <th>15</th>
+        <th>16</th>
+        <th>17</th>
+        <th>18</th>
+        <th>19</th>
+        <th>20</th>
+        <th>21</th>
+        <th>22</th>
+        <th>23</th>
+        <th>24</th>
+        <th>25</th>
+        <th>26</th>
+        <th>27</th>
+        <th>28</th>
+        <th>29</th>
+        <th>30</th>
+        <th>31</th>
+    </tr>
+    <tr>
+        <th>1</th>
+        <th>2</th>
+        <th>3</th>
+        <th>4</th>
+        <th>5</th>
+        <th>6</th>
+        <th colspan="31" style="text-align:center;">7</th>
+    </tr>
+
+    <!-- Data Rows (Make sure 39 <td>s only) -->
+    <?php if (!empty($stateData)): ?>
+        <?php $i = 1; foreach ($stateData as $row): ?>
+        <tr>
+            <td><?= $i++ ?></td>
+            <td><?= htmlspecialchars($row['employee_code'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['employee_name'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['date_of_joining'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['shift_details'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['date_of_leaving'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_1'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_2'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_3'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_4'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_5'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_6'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_7'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_8'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_9'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_10'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_11'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_12'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_13'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_14'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_15'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_16'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_17'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_18'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_19'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_20'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_21'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_22'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_23'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_24'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_25'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_26'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_27'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_28'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_29'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_30'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['day_31'] ?? '') ?></td>
+        </tr>
+        <?php endforeach; ?>
+    <?php else: ?>
+        <tr>
+            <td colspan="37" style="text-align:center;">No employee data found for West Bengal</td>
+        </tr>
+    <?php endif; ?>
+</table>
+</body>
+</html>
