@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>S&E Data Mapping</title>
+  <link rel="stylesheet" href="styles/mapping.css">
+  <script type="text/javascript">
+    function preventBack() {
+      window.history.forward()
+    };
+    setTimeout("preventBack()", 0);
+    window.onunload = function() {
+      null;
+    }
+  </script>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+    <div class="logo">
+      <img src="./img/Talent.png" alt="Logo" />
+      <div class="logo-text">
+        <span class="main-title">Talent Traverse HR TECH PVT LTD</span>
+        <span class="tagline">Beyond Boundaries</span>
+      </div>
+    </div>
+    <div class="nav-links">
+      <a href="upload.php">Back</a>
+      <a href="logout.php" id="logoutLink">Logout</a>
+    </div>
+  </nav>
+
+<!-- Three Box Container -->
+<div class="container">
+  <!-- Box 1 -->
+  <div class="box">
+    <h2>Client Input</h2>
+    <div class="sheet-selector-container" id="sheet-selector">
+      <label for="sheet-select">Select Sheet:</label>
+      <select id="sheet-select" class="sheet-select"></select>
+    </div>
+    <div class="checkbox-container" id="client-items">
+      <!-- Excel columns will appear here -->
+    </div>
+    <div class="upload-container">
+      <input type="file" id="client-upload" class="file-upload" accept=".xls,.xlsx,.xlsm,.xlsb,.csv">
+      <label for="client-upload" class="upload-label">
+        <span class="upload-text">Upload Excel File📁</span>
+      </label>
+    </div>
+    <div class="file-info" id="file-info"></div>
+    <div class="button-container">
+      <button class="btn-secondary" id="reset-btn">Reset</button>
+    </div>
+  </div>
+  
+  <!-- Box 2 -->
+  <div class="box">
+    <h2>Statutory Input</h2>
+    <div class="checkbox-container" id="statutory-items">
+      <div class="selectable-item" data-value="Month">Month</div>
+      <div class="selectable-item" data-value="Year">Year</div>
+      <div class="selectable-item" data-value="Employee Code">Employee Code</div>
+      <div class="selectable-item" data-value="Employee Name">Employee Name</div>
+      <div class="selectable-item" data-value="Father Name">Father Name</div>
+      <div class="selectable-item" data-value="Date of Birth">Date of Birth</div>
+      <div class="selectable-item" data-value="Date of Joining">Date of Joining</div>
+      <div class="selectable-item" data-value="Date of Confirmation">Date of Confirmation</div>
+      <div class="selectable-item" data-value="Date of Leaving">Date of Leaving</div>
+      <div class="selectable-item" data-value="Gender">Gender</div>
+      <div class="selectable-item" data-value="Designation">Designation</div>
+      <div class="selectable-item" data-value="Department">Department</div>
+      <div class="selectable-item" data-value="Bank Name">Bank Name</div>
+      <div class="selectable-item" data-value="Bank Account.No">Bank Account.No</div>
+      <div class="selectable-item" data-value="IFSC Code">IFSC Code</div>
+      <div class="selectable-item" data-value="Present Address">Present Address</div>
+      <div class="selectable-item" data-value="Client Name">Client Name</div>
+      <div class="selectable-item" data-value="State">State</div>
+      <div class="selectable-item" data-value="City">City</div>
+      <div class="selectable-item" data-value="Location Code">Location Code</div>
+      <div class="selectable-item" data-value="Location Name">Location Name</div>
+      <div class="selectable-item" data-value="Branch Address">Branch Address</div>
+      <div class="selectable-item" data-value="Employer Name">Employer Name</div>
+      <div class="selectable-item" data-value="Employer Address">Employer Address</div>
+      <div class="selectable-item" data-value="Nature of Business">Nature of Business</div>
+      <div class="selectable-item" data-value="Shift Details">Shift Details</div>
+      <div class="selectable-item" data-value="Paid Days">Paid Days</div>
+      <div class="selectable-item" data-value="LOP">LOP</div>
+      <div class="selectable-item" data-value="Fixed Basic">Fixed Basic</div>
+      <div class="selectable-item" data-value="Fixed DA">Fixed DA</div>
+      <div class="selectable-item" data-value="Fixed HRA">Fixed HRA</div>
+      <div class="selectable-item" data-value="Fixed Conveyance">Fixed Conveyance</div>
+      <div class="selectable-item" data-value="Fixed Special Allowance">Fixed Special Allowance</div>
+      <div class="selectable-item" data-value="Fixed Other Allowance">Fixed Other Allowance</div>
+      <div class="selectable-item" data-value="Fixed Gross">Fixed Gross</div>
+      <div class="selectable-item" data-value="Basic">Basic</div>
+      <div class="selectable-item" data-value="DA">DA</div>
+      <div class="selectable-item" data-value="HRA">HRA</div>
+      <div class="selectable-item" data-value="Conveyance Allowance">Conveyance Allowance</div>
+      <div class="selectable-item" data-value="Special Allowance">Special Allowance</div>
+      <div class="selectable-item" data-value="Statutory Bonus">Statutory Bonus</div>
+      <div class="selectable-item" data-value="Exgratia Bonus">Exgratia Bonus</div>
+      <div class="selectable-item" data-value="Maternity Bonus">Maternity Bonus</div>
+      <div class="selectable-item" data-value="Overtime Allowance">Overtime Allowance</div>
+      <div class="selectable-item" data-value="Medical Allowance">Medical Allowance</div>
+      <div class="selectable-item" data-value="Attendance Bonus">Attendance Bonus</div>
+      <div class="selectable-item" data-value="Advance">Advance</div>
+      <div class="selectable-item" data-value="NFH Wages">NFH Wages</div>
+      <div class="selectable-item" data-value="Subsistence Allowance">Subsistence Allowance</div>
+      <div class="selectable-item" data-value="Other Allowance">Other Allowance</div>
+      <div class="selectable-item" data-value="Gross Wages">Gross Wages</div>
+      <div class="selectable-item" data-value="EPF">EPF</div>
+      <div class="selectable-item" data-value="VPF">VPF</div>
+      <div class="selectable-item" data-value="ESI">ESI</div>
+      <div class="selectable-item" data-value="Ptax">Ptax</div>
+      <div class="selectable-item" data-value="LWF">LWF</div>
+      <div class="selectable-item" data-value="IT/TDS">IT/TDS</div>
+      <div class="selectable-item" data-value="Fines Damage or Loss">Fines Damage or Loss</div>
+      <div class="selectable-item" data-value="Insurance">Insurance</div>
+      <div class="selectable-item" data-value="Advance Recovery">Advance Recovery</div>
+      <div class="selectable-item" data-value="Other Deduction">Other Deductions</div>
+      <div class="selectable-item" data-value="Total Deduction">Total Deduction</div>
+      <div class="selectable-item" data-value="Net Pay">Net Pay</div>
+      <div class="selectable-item" data-value="Payment Date">Payment Date</div>
+      <div class="selectable-item" data-value="Employer PF">Employer PF</div>
+      <div class="selectable-item" data-value="Day 1">Day 1</div>
+      <div class="selectable-item" data-value="Day 2">Day 2</div>
+      <div class="selectable-item" data-value="Day 3">Day 3</div>
+      <div class="selectable-item" data-value="Day 4">Day 4</div>
+      <div class="selectable-item" data-value="Day 5">Day 5</div>
+      <div class="selectable-item" data-value="Day 6">Day 6</div>
+      <div class="selectable-item" data-value="Day 7">Day 7</div>
+      <div class="selectable-item" data-value="Day 8">Day 8</div>
+      <div class="selectable-item" data-value="Day 9">Day 9</div>
+      <div class="selectable-item" data-value="Day 10">Day 10</div>
+      <div class="selectable-item" data-value="Day 11">Day 11</div>
+      <div class="selectable-item" data-value="Day 12">Day 12</div>
+      <div class="selectable-item" data-value="Day 13">Day 13</div>
+      <div class="selectable-item" data-value="Day 14">Day 14</div>
+      <div class="selectable-item" data-value="Day 15">Day 15</div>
+      <div class="selectable-item" data-value="Day 16">Day 16</div>
+      <div class="selectable-item" data-value="Day 17">Day 17</div>
+      <div class="selectable-item" data-value="Day 18">Day 18</div>
+      <div class="selectable-item" data-value="Day 19">Day 19</div>
+      <div class="selectable-item" data-value="Day 20">Day 20</div>
+      <div class="selectable-item" data-value="Day 21">Day 21</div>
+      <div class="selectable-item" data-value="Day 22">Day 22</div>
+      <div class="selectable-item" data-value="Day 23">Day 23</div>
+      <div class="selectable-item" data-value="Day 24">Day 24</div>
+      <div class="selectable-item" data-value="Day 25">Day 25</div>
+      <div class="selectable-item" data-value="Day 26">Day 26</div>
+      <div class="selectable-item" data-value="Day 27">Day 27</div>
+      <div class="selectable-item" data-value="Day 28">Day 28</div>
+      <div class="selectable-item" data-value="Day 29">Day 29</div>
+      <div class="selectable-item" data-value="Day 31">Day 31</div>
+      <div class="selectable-item" data-value="Total Worked Days">Total Worked Days</div>
+      <div class="selectable-item" data-value="OT Hours">OT Hours</div>
+      <div class="selectable-item" data-value="Extend OT On Which Occasion">Extend OT On Which Occasion</div>
+      <div class="selectable-item" data-value="PL Opening">PL Opening</div>
+      <div class="selectable-item" data-value="PL Availed">PL Availed</div>
+      <div class="selectable-item" data-value="PL Credit">PL Credit</div>
+      <div class="selectable-item" data-value="PL Closing">PL Closing</div>
+      <div class="selectable-item" data-value="CL Opening">CL Opening</div>
+      <div class="selectable-item" data-value="CL Availed">CL Availed</div>
+      <div class="selectable-item" data-value="CL Credit">CL Credit</div>
+      <div class="selectable-item" data-value="CL Closing">CL Closing</div>
+      <div class="selectable-item" data-value="SL Opening">SL Opening</div>
+      <div class="selectable-item" data-value="SL Availed">SL Availed</div>
+      <div class="selectable-item" data-value="SL Credit">SL Credit</div>
+      <div class="selectable-item" data-value="SL Closing">SL Closing</div>
+    </div>
+    <div class="button-container">
+      <button class="btn-primary" id="map-btn">Map</button>
+      <button class="btn-primary" id="unmap-btn">Unmap</button>
+    </div>
+  </div>
+  
+  <!-- Box 3 -->
+  <div class="box">
+    <h2>Mapped Data</h2>
+    <div class="checkbox-container" id="mapped-items">
+    </div>
+    <div class="button-container">
+      <button class="btn-primary" id="export-btn">Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- Include SheetJS for Excel parsing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="./script/mapping.js"></script>
+</body>
+</html>

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Factory Data Mapping</title>
+  <link rel="stylesheet" href="styles/mapping.css">
+  <script type="text/javascript">
+    function preventBack() {
+      window.history.forward()
+    };
+    setTimeout("preventBack()", 0);
+    window.onunload = function() {
+      null;
+    }
+  </script>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+    <div class="logo">
+      <img src="./img/Talent.png" alt="Logo" />
+      <div class="logo-text">
+        <span class="main-title">Talent Traverse HR TECH PVT LTD</span>
+        <span class="tagline">Beyond Boundaries</span>
+      </div>
+    </div>
+    <div class="nav-links">
+      <a href="upload.php?category=factory">Back</a>
+      <a href="logout.php" id="logoutLink">Logout</a>
+    </div>
+  </nav>
+
+<!-- Three Box Container -->
+<div class="container">
+  <!-- Box 1 -->
+  <div class="box">
+    <h2>Client Input</h2>
+    <div class="sheet-selector-container" id="sheet-selector">
+      <label for="sheet-select">Select Sheet:</label>
+      <select id="sheet-select" class="sheet-select"></select>
+    </div>
+    <div class="checkbox-container" id="client-items">
+      <!-- Excel columns will appear here -->
+    </div>
+    <div class="upload-container">
+      <input type="file" id="client-upload" class="file-upload" accept=".xls,.xlsx,.xlsm,.xlsb,.csv">
+      <label for="client-upload" class="upload-label">
+        <span class="upload-text">Upload Excel File📁</span>
+      </label>
+    </div>
+    <div class="file-info" id="file-info"></div>
+    <div class="button-container">
+      <button class="btn-secondary" id="reset-btn">Reset</button>
+    </div>
+  </div>
+  
+  <!-- Box 2 -->
+  <div class="box">
+    <h2>Statutory Input</h2>
+    <div class="checkbox-container" id="statutory-items">
+      <div class="selectable-item" data-value="Month">Month</div>
+      <div class="selectable-item" data-value="Year">Year</div>
+      <div class="selectable-item" data-value="Employee Code">Employee Code</div>
+      <div class="selectable-item" data-value="Employee Name">Employee Name</div>
+      <div class="selectable-item" data-value="Father Name">Father Name</div>
+      <div class="selectable-item" data-value="Date of Birth">Date of Birth</div>
+      <div class="selectable-item" data-value="Date of Joining">Date of Joining</div>
+      <div class="selectable-item" data-value="Date of Confirmation">Date of Confirmation</div>
+      <div class="selectable-item" data-value="Date of Resign">Date of Resign</div>
+      <div class="selectable-item" data-value="Reason for Exit">Reason for Exit</div>
+      <div class="selectable-item" data-value="Gender">Gender</div>
+      <div class="selectable-item" data-value="Designation">Designation</div>
+      <div class="selectable-item" data-value="Department">Department</div>
+      <div class="selectable-item" data-value="Category">Category</div>
+      <div class="selectable-item" data-value="Bank Name">Bank Name</div>
+      <div class="selectable-item" data-value="Bank Account Number">Bank Account Number</div>
+      <div class="selectable-item" data-value="IFSC Code">IFSC Code</div>
+      <div class="selectable-item" data-value="UAN Number">UAN Number</div>
+      <div class="selectable-item" data-value="ESI Number">ESI Number</div>
+      <div class="selectable-item" data-value="PAN Number">PAN Number</div>
+      <div class="selectable-item" data-value="Aadhaar">Aadhaar</div>
+      <div class="selectable-item" data-value="Client Name">Client Name</div>
+      <div class="selectable-item" data-value="State">State</div>
+      <div class="selectable-item" data-value="Location Code">Location Code</div>
+      <div class="selectable-item" data-value="Address">Address</div>
+      <div class="selectable-item" data-value="Principal employer Name">Principal employer Name</div>
+      <div class="selectable-item" data-value="Principal employer address">Principal employer address</div>
+      <div class="selectable-item" data-value="Shift details">Shift details</div>
+      <div class="selectable-item" data-value="Nature Of Business">Nature Of Business</div>
+      <div class="selectable-item" data-value="Paid days">Paid days</div>
+      <div class="selectable-item" data-value="Fixed Basic">Fixed Basic</div>
+      <div class="selectable-item" data-value="Fixed DA">Fixed DA</div>
+      <div class="selectable-item" data-value="Fixed HRA">Fixed HRA</div>
+      <div class="selectable-item" data-value="Rate of Wage ( Fixed Gross )">Rate of Wage ( Fixed Gross )</div>
+      <div class="selectable-item" data-value="Basic">Basic</div>
+      <div class="selectable-item" data-value="DA">DA</div>
+      <div class="selectable-item" data-value="HRA">HRA</div>
+      <div class="selectable-item" data-value="Special Allowance">Special Allowance</div>
+      <div class="selectable-item" data-value="Leave Travel Allowance">Leave Travel Allowance</div>
+      <div class="selectable-item" data-value="Conveyance Allowance">Conveyance Allowance</div>
+      <div class="selectable-item" data-value="Over Time Allowance">Over Time Allowance</div>
+      <div class="selectable-item" data-value="NH / FH / Week Off Wages">NH / FH / Week Off Wages</div>
+      <div class="selectable-item" data-value="Medical Allowance">Medical Allowance</div>
+      <div class="selectable-item" data-value="Children Education Allowance">Children Education Allowance</div>
+      <div class="selectable-item" data-value="Incentive">Incentive</div>
+      <div class="selectable-item" data-value="Other Allowance">Other Allowance</div>
+      <div class="selectable-item" data-value="Night Shift Allowance">Night Shift Allowance</div>
+      <div class="selectable-item" data-value="Food Allowance">Food Allowance</div>
+      <div class="selectable-item" data-value="Bonus">Bonus</div>
+      <div class="selectable-item" data-value="Mob allowance">Mob allowance</div>
+      <div class="selectable-item" data-value="Vehicle Reimb">Vehicle Reimb</div>
+      <div class="selectable-item" data-value="Earned Gross">Earned Gross</div>
+      <div class="selectable-item" data-value="PF">PF</div>
+      <div class="selectable-item" data-value="VPF">VPF</div>
+      <div class="selectable-item" data-value="ESI">ESI</div>
+      <div class="selectable-item" data-value="Ptax">Ptax</div>
+      <div class="selectable-item" data-value="LWF">LWF</div>
+      <div class="selectable-item" data-value="TDS">TDS</div>
+      <div class="selectable-item" data-value="Advance / Loan">Advance / Loan</div>
+      <div class="selectable-item" data-value="Deduction for Damages / Loss">Deduction for Damages / Loss</div>
+      <div class="selectable-item" data-value="Fine">Fine</div>
+      <div class="selectable-item" data-value="Medical Insurance">Medical Insurance</div>
+      <div class="selectable-item" data-value="Other Deductions">Other Deductions</div>
+      <div class="selectable-item" data-value="Total Deduction">Total Deduction</div>
+      <div class="selectable-item" data-value="Net Pay">Net Pay</div>
+      <div class="selectable-item" data-value="Payment Date">Payment Date</div>
+      <div class="selectable-item" data-value="Day 1">Day 1</div>
+      <div class="selectable-item" data-value="Day 2">Day 2</div>
+      <div class="selectable-item" data-value="Day 3">Day 3</div>
+      <div class="selectable-item" data-value="Day 4">Day 4</div>
+      <div class="selectable-item" data-value="Day 5">Day 5</div>
+      <div class="selectable-item" data-value="Day 6">Day 6</div>
+      <div class="selectable-item" data-value="Day 7">Day 7</div>
+      <div class="selectable-item" data-value="Day 8">Day 8</div>
+      <div class="selectable-item" data-value="Day 9">Day 9</div>
+      <div class="selectable-item" data-value="Day 10">Day 10</div>
+      <div class="selectable-item" data-value="Day 11">Day 11</div>
+      <div class="selectable-item" data-value="Day 12">Day 12</div>
+      <div class="selectable-item" data-value="Day 13">Day 13</div>
+      <div class="selectable-item" data-value="Day 14">Day 14</div>
+      <div class="selectable-item" data-value="Day 15">Day 15</div>
+      <div class="selectable-item" data-value="Day 16">Day 16</div>
+      <div class="selectable-item" data-value="Day 17">Day 17</div>
+      <div class="selectable-item" data-value="Day 18">Day 18</div>
+      <div class="selectable-item" data-value="Day 19">Day 19</div>
+      <div class="selectable-item" data-value="Day 20">Day 20</div>
+      <div class="selectable-item" data-value="Day 21">Day 21</div>
+      <div class="selectable-item" data-value="Day 22">Day 22</div>
+      <div class="selectable-item" data-value="Day 23">Day 23</div>
+      <div class="selectable-item" data-value="Day 24">Day 24</div>
+      <div class="selectable-item" data-value="Day 25">Day 25</div>
+      <div class="selectable-item" data-value="Day 26">Day 26</div>
+      <div class="selectable-item" data-value="Day 27">Day 27</div>
+      <div class="selectable-item" data-value="Day 28">Day 28</div>
+      <div class="selectable-item" data-value="Day 29">Day 29</div>
+      <div class="selectable-item" data-value="Day 31">Day 31</div>
+      <div class="selectable-item" data-value="Total Present Days">Total Present Days</div>
+      <div class="selectable-item" data-value="PL Opening">PL Opening</div>
+      <div class="selectable-item" data-value="PL Availed">PL Availed</div>
+      <div class="selectable-item" data-value="PL Credit">PL Credit</div>
+      <div class="selectable-item" data-value="PL Closing">PL Closing</div>
+      <div class="selectable-item" data-value="CL Opening">CL Opening</div>
+      <div class="selectable-item" data-value="CL Availed">CL Availed</div>
+      <div class="selectable-item" data-value="CL Credit">CL Credit</div>
+      <div class="selectable-item" data-value="CL Closing">CL Closing</div>
+      <div class="selectable-item" data-value="SL Opening">SL Opening</div>
+      <div class="selectable-item" data-value="SL Availed">SL Availed</div>
+      <div class="selectable-item" data-value="SL Credit">SL Credit</div>
+      <div class="selectable-item" data-value="SL Closing">SL Closing</div>
+      <div class="selectable-item" data-value="OT Hours">OT Hours</div>
+      <div class="selectable-item" data-value="Fixed OT wages">Fixed OT wages</div>
+      <div class="selectable-item" data-value="Extent of overtime on each occasion">Extent of overtime on each occasion</div>
+      <div class="selectable-item" data-value="Date on which overtime wage paid">Date on which overtime wage paid</div>           
+      <div class="selectable-item" data-value="OT Day 1">OT Day 1</div>
+      <div class="selectable-item" data-value="OT Day 2">OT Day 2</div>
+      <div class="selectable-item" data-value="OT Day 3">OT Day 3</div>
+      <div class="selectable-item" data-value="OT Day 4">OT Day 4</div>
+      <div class="selectable-item" data-value="OT Day 5">OT Day 5</div>
+      <div class="selectable-item" data-value="OT Day 6">OT Day 6</div>
+      <div class="selectable-item" data-value="OT Day 7">OT Day 7</div>
+      <div class="selectable-item" data-value="OT Day 8">OT Day 8</div>
+      <div class="selectable-item" data-value="OT Day 9">OT Day 9</div>
+      <div class="selectable-item" data-value="OT Day 10">OT Day 10</div>
+      <div class="selectable-item" data-value="OT Day 11">OT Day 11</div>
+      <div class="selectable-item" data-value="OT Day 12">OT Day 12</div>
+      <div class="selectable-item" data-value="OT Day 13">OT Day 13</div>
+      <div class="selectable-item" data-value="OT Day 14">OT Day 14</div>
+      <div class="selectable-item" data-value="OT Day 15">OT Day 15</div>
+      <div class="selectable-item" data-value="OT Day 16">OT Day 16</div>
+      <div class="selectable-item" data-value="OT Day 17">OT Day 17</div>
+      <div class="selectable-item" data-value="OT Day 18">OT Day 18</div>
+      <div class="selectable-item" data-value="OT Day 19">OT Day 19</div>
+      <div class="selectable-item" data-value="OT Day 20">OT Day 20</div>
+      <div class="selectable-item" data-value="OT Day 21">OT Day 21</div>
+      <div class="selectable-item" data-value="OT Day 22">OT Day 22</div>
+      <div class="selectable-item" data-value="OT Day 23">OT Day 23</div>
+      <div class="selectable-item" data-value="OT Day 24">OT Day 24</div>
+      <div class="selectable-item" data-value="OT Day 25">OT Day 25</div>
+      <div class="selectable-item" data-value="OT Day 26">OT Day 26</div>
+      <div class="selectable-item" data-value="OT Day 27">OT Day 27</div>
+      <div class="selectable-item" data-value="OT Day 28">OT Day 28</div>
+      <div class="selectable-item" data-value="OT Day 29">OT Day 29</div>
+      <div class="selectable-item" data-value="OT Day 30">OT Day 30</div>
+      <div class="selectable-item" data-value="OT Day 31">OT Day 31</div>
+      <div class="selectable-item" data-value="Date and amount of advance given">Date and amount of advance given</div>
+      <div class="selectable-item" data-value="Purposes for which advance made">Purposes for which advance made</div>
+      <div class="selectable-item" data-value="No. of installments by which advance to be repaid">No. of installments by which advance to be repaid</div>
+      <div class="selectable-item" data-value="Date and amount of each installment repaid">Date and amount of each installment repaid</div>
+      <div class="selectable-item" data-value="Date on which last installment was paid">Date on which last installment was paid</div>
+      <div class="selectable-item" data-value="Date of damage">Date of damage</div>
+      <div class="selectable-item" data-value="Whether worker showed cause against deduction">Whether worker showed cause against deduction</div>
+      <div class="selectable-item" data-value="Date_of_deduction_imposed">Date_of_deduction_imposed</div>
+      <div class="selectable-item" data-value="Amount_of_deduction_imposed">Amount_of_deduction_imposed</div>
+      <div class="selectable-item" data-value="No. of installment">No. of installment</div>
+      <div class="selectable-item" data-value="Last installment date">Last installment date</div>
+      <div class="selectable-item" data-value="Act/Omission for which fine is imposed">Act/Omission for which fine is imposed</div>
+      <div class="selectable-item" data-value="Whether workman showed cause against fine">Whether workman showed cause against fine</div>
+      <div class="selectable-item" data-value="Nature and date of offence for which fine imposed">Nature and date of offence for which fine imposed</div>
+      <div class="selectable-item" data-value="Date & Amount_of_fine_imposed">Date & Amount_of_fine_imposed</div>
+      <div class="selectable-item" data-value="Date on which fine realised">Date on which fine realised</div>
+      <div class="selectable-item" data-value="Date on which the woman gives notice under section 6">Date on which the woman gives notice under section 6</div>
+      <div class="selectable-item" data-value="Date of discharge/dismissal, if any">Date of discharge/dismissal, if any</div>
+      <div class="selectable-item" data-value="Date of production of proof of pregnancy under section 6">Date of production of proof of pregnancy under section 6</div>
+      <div class="selectable-item" data-value="Date of birth of child">Date of birth of child</div>
+      <div class="selectable-item" data-value="Date of production of proof of delivery/miscarriage/ [Medical Termination of pregnancy/tubectomy operation/death]">Date of production of proof of delivery/miscarriage/ [Medical Termination of pregnancy/tubectomy operation/death]</div>
+      <div class="selectable-item" data-value="Date of production of proof of illness referred to in section 10">Date of production of proof of illness referred to in section 10</div>
+      <div class="selectable-item" data-value="Date with the amount of maternity benefit paid in advance of expected delivery">Date with the amount of maternity benefit paid in advance of expected delivery</div>
+      <div class="selectable-item" data-value="Date with the amount of subsequent payment of maternity Benefit">Date with the amount of subsequent payment of maternity Benefit</div>
+      <div class="selectable-item" data-value="Date with the amount of bonus, if paid, under section 8">Date with the amount of bonus, if paid, under section 8</div>
+      <div class="selectable-item" data-value="Date with the amount of wages paid on account of leave under section 9 [15 A. Date with the amount of wages paid on account of leave under section 9A]">Date with the amount of wages paid on account of leave under section 9 [15 A. Date with the amount of wages paid on account of leave under section 9A]</div>
+      <div class="selectable-item" data-value="Date with the amount of wages paid on account of leave under section 10 and period of leave granted">Date with the amount of wages paid on account of leave under section 10 and period of leave granted</div>
+      <div class="selectable-item" data-value="Name of the person nominated by the woman under section 6">Name of the person nominated by the woman under section 6</div>
+      <div class="selectable-item" data-value="If the woman dies, the date of her death, the names of the person to whom maternity benefit and/or other amount was paid, the amount thereof, and the date of payment">If the woman dies, the date of her death, the names of the person to whom maternity benefit and/or other amount was paid, the amount thereof, and the date of payment</div>
+      <div class="selectable-item" data-value="If the woman dies and the child survives, the name of the person to whom the amount of maternity benefit was paid on behalf of the child and the period for which it was paid">If the woman dies and the child survives, the name of the person to whom the amount of maternity benefit was paid on behalf of the child and the period for which it was paid</div>
+      <div class="selectable-item" data-value="Date of Notice">Date of Notice</div>
+      <div class="selectable-item" data-value="Time of Notice">Time of Notice</div>
+      <div class="selectable-item" data-value="Number of days injured person was absent from work">Number of days injured person was absent from work</div>
+      <div class="selectable-item" data-value="Insurance Number">Insurance Number</div>
+      <div class="selectable-item" data-value="Date of return of injured person to work">Date of return of injured person to work</div>
+      <div class="selectable-item" data-value="Cause of Injury">Cause of Injury</div>
+      <div class="selectable-item" data-value="Nature of Injury">Nature of Injury</div>
+      <div class="selectable-item" data-value="Date of Injury">Date of Injury</div>
+      <div class="selectable-item" data-value="Time Details of Injury">Time Details of Injury</div>
+      <div class="selectable-item" data-value="Place Details of Injury">Place Details of Injury</div>
+      <div class="selectable-item" data-value="What exactly was the injured person doing at the time of accident">What exactly was the injured person doing at the time of accident</div>
+      <div class="selectable-item" data-value="Name, Occupation, address and signature or the thumb impression of the person(s) giving notice">Name, Occupation, address and signature or the thumb impression of the person(s) giving notice</div>
+      <div class="selectable-item" data-value="Name, address and occupation of two witnesses">Name, address and occupation of two witnesses</div>
+      <div class="selectable-item" data-value="Part of Factory, e.g., name of Unit of Room">Part of Factory, e.g., name of Unit of Room</div>
+      <div class="selectable-item" data-value="Wall and other Parts">Wall and other Parts</div>
+      <div class="selectable-item" data-value="Treatment whether lime-washed, painted, vanished or oiled">Treatment whether lime-washed, painted, vanished or oiled</div>
+      <div class="selectable-item" data-value="Date on which lime-washing, painting, vanishing or oiling was carried out (according to English Calendar)">Date on which lime-washing, painting, vanishing or oiling was carried out (according to English Calendar)</div>
+      <div class="selectable-item" data-value="Raw materials products or by-products likely to be exposed to">Raw materials products or by-products likely to be exposed to</div>
+      <div class="selectable-item" data-value="Dates of medical examination">Dates of medical examination</div>
+      <div class="selectable-item" data-value="medical examination results">medical examination results</div>
+      <div class="selectable-item" data-value="Signs and symptoms observed during examination">Signs and symptoms observed during examination</div>
+      <div class="selectable-item" data-value="Nature of tests and results thereof">Nature of tests and results thereof</div>
+      <div class="selectable-item" data-value="If declared unfit for work, state period of suspension with reasons in detail">If declared unfit for work, state period of suspension with reasons in detail</div>
+      <div class="selectable-item" data-value="Whether certificate of unfitness issued to the worker">Whether certificate of unfitness issued to the worker</div>
+      <div class="selectable-item" data-value="Re-certified fit to resume duty on">Re-certified fit to resume duty on</div>
+      <div class="selectable-item" data-value="Nature of offence committed and date of offence">Nature of offence committed and date of offence</div>
+      <div class="selectable-item" data-value="Date of suspension">Date of suspension</div>
+      <div class="selectable-item" data-value="Date of revocation of suspension">Date of revocation of suspension</div>
+      <div class="selectable-item" data-value="Rate at which subsistence allowance calculated and period for which calculation made">Rate at which subsistence allowance calculated and period for which calculation made</div>
+      <div class="selectable-item" data-value="Amount of subsistence allowance paid and the date of payment ">Amount of subsistence allowance paid and the date of payment </div>
+    </div>
+    <div class="button-container">
+      <button class="btn-primary" id="map-btn">Map</button>
+      <button class="btn-primary" id="unmap-btn">Unmap</button>
+    </div>
+  </div>
+  
+  <!-- Box 3 -->
+  <div class="box">
+    <h2>Mapped Data</h2>
+    <div class="checkbox-container" id="mapped-items">
+    </div>
+    <div class="button-container">
+      <button class="btn-primary" id="export-btn">Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- Include SheetJS for Excel parsing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="./script/mapping.js"></script>
+</body>
+</html>

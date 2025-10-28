@@ -146,7 +146,8 @@ if (isset($_SESSION['success'])) {
           {
             text: "POG Forms",
             url: "establishment_compliance.php?service=pog"
-          }
+          },
+          { text: "Mapping", type: "mapping", url: "se_mapping.html", external: true }
         ],
         payroll: [{
             text: "Remittances",
@@ -163,7 +164,8 @@ if (isset($_SESSION['success'])) {
           {
             text: "Overtime and Holiday",
             url: "payroll_compliance.php?service=bonus"
-          }
+          },
+          { text: "Mapping", type: "mapping", url: "payroll_compliance.php?service=mapping" }
         ],
         contract: [{
             text: "Registers",
@@ -181,7 +183,8 @@ if (isset($_SESSION['success'])) {
           {
             text: "POG Forms",
             url: "contract_compliance.php?service=monitoring"
-          }
+          },
+          { text: "Mapping", type: "mapping", url: "clra_mapping.html", external: true }
         ],
         factory: [{
             text: "Registers",
@@ -196,10 +199,8 @@ if (isset($_SESSION['success'])) {
             text: "Display Notices",
             url: "factory_compliance.php?service=safety"
           },
-          {
-            text: "Up coming",
-            url: "factory_compliance.php?service=water"
-          }
+          { text: "POG Forms", url: "factory_compliance.php?service=monitoring" },
+          { text: "Mapping", type: "mapping", url: "factory_mapping.html", external: true }
         ]
 
       };
@@ -230,25 +231,29 @@ if (isset($_SESSION['success'])) {
           "Registers": "Establishment Registers",
           "Returns": "Establishment Returns",
           "Display Notices": "Establishment Display Notices",
-          "POG Forms": "Establishment POG Forms"
+          "POG Forms": "Establishment POG Forms",
+          "Mapping": "Establishment Data Mapping"
         },
         payroll: {
           "Remittances": "Payroll Remittances",
           "Gratuity": "Gratuity Management",
           "Minimum Wages": "Minimum Wages Compliance",
-          "Overtime and Holiday": "Overtime and Holiday Management"
+          "Overtime and Holiday": "Overtime and Holiday Management",
+          "Mapping": "Payroll Data Mapping"
         },
         contract: {
           "Registers": "Contract Labor Registers",
           "Returns": "Contract Labor Returns",
           "Display Notices": "Contract Labor Display Notices",
-          "POG Forms": "Contract Labor POG Forms"
+          "POG Forms": "Contract Labor POG Forms",
+          "Mapping": "Contract Labor Data Mapping"
         },
         factory: {
           "Registers": "Factory Registers",
           "Returns": "Factory Returns",
           "Display Notices": "Factory Display Notices",
-          "Up coming": "Upcoming Factory Compliance"
+          "POG Forms": "Factory POG Forms",
+          "Mapping": "Factory Data Mapping"
         }
       };
 
@@ -303,7 +308,18 @@ if (isset($_SESSION['success'])) {
           a.href = item.url;
           a.textContent = item.text;
           a.setAttribute('data-type', item.type || '');
+
+        // Add external attribute for mapping links
+          if (item.external) {
+            a.setAttribute('data-external', 'true');
+          }
+
           a.addEventListener('click', function(e) {
+            // If this is an external link (Mapping), allow normal navigation
+            if (this.getAttribute('data-external') === 'true') {
+              return; // Allow default behavior (redirect)
+            }
+            
             e.preventDefault();
 
             // Remove active class from all links
