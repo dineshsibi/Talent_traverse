@@ -1,546 +1,691 @@
 <?php
 session_start();
 
-// Check if user is logged in
+// Check login
 if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
     echo "Unauthorized: Please login first.";
     exit();
 }
 
-// Database configuration
 include("includes/config.php");
-
-// Enable error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-
-// Create connection
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch(PDOException $e) {
-    die("Connection failed: " . $e->getMessage());
-}
-
-// Include PhpSpreadsheet
 require 'vendor/autoload.php';
+
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 
-// Get the logged-in employee's information
-$uploaded_by = $_SESSION['user_name']; // Employee name
-$uploaded_by_id = $_SESSION['user_id']; // Employee ID
+// ---------- HELPERS ---------- //
 
-// Function to check if data already exists
-function check_duplicate_data($pdo, $client_name, $state, $location_code, $month, $year) {
-    $sql = "SELECT COUNT(*) as count FROM consolidated_data 
-            WHERE client_name = ? AND state = ? AND location_code = ? AND month = ? AND year = ?";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$client_name, $state, $location_code, $month, $year]);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    return $result['count'] > 0;
+function normalize_text($v)
+{
+    return strtolower(trim((string)$v));
 }
 
-// Helper functions
-function clean_import_value($value) {
+function normalize_month($m)
+{
+    if ($m === null) return '';
+    $m = trim((string)$m);
+    if ($m === '') return '';
+    if (is_numeric($m)) {
+        return (string)(int)$m;
+    }
+    // direct matches like "8-2025" or "08-2025"
+    if (preg_match('/^\s*(\d{1,2})\s*[-\/]\s*\d{2,4}\s*$/', $m, $match)) {
+        return (string)(int)$match[1];
+    }
+    // if contains only digits and non-digit separators
+    if (preg_match('/^\d{1,2}$/', $m)) return (string)(int)$m;
+
+    // try parsing month name using strtotime (prepend day to help parsing)
+    $ts = @strtotime('1 ' . $m);
+    if ($ts !== false) {
+        return (string) (int) date('n', $ts); // 1..12
+    }
+
+    // fallback
+    return strtolower($m);
+}
+
+function normalize_year($y)
+{
+    if ($y === null) return '';
+    $y = trim((string)$y);
+    if ($y === '') return '';
+    if (is_numeric($y)) {
+        return (string)(int)$y;
+    }
+    // if like "Aug-2002" or "8-2025"
+    if (preg_match('/[-\/](\d{4})$/', $y, $match)) {
+        return $match[1];
+    }
+    $ts = @strtotime($y);
+    if ($ts !== false) return (string) date('Y', $ts);
+    return strtolower($y);
+}
+
+function build_key($client, $state, $location_code, $month, $year)
+{
+    // use normalized pieces separated by |
+    $c = normalize_text($client);
+    $s = normalize_text($state);
+    $l = normalize_text($location_code);
+    $m = normalize_month($month);
+    $y = normalize_year($year);
+    return $c . '|' . $s . '|' . $l . '|' . $m . '|' . $y;
+}
+
+/**
+ * Get existing keys for a table BEFORE this upload.
+ * Returns associative array with keys => true.
+ */
+function get_existing_keys_for_table($pdo, $table)
+{
+    $allowedTables = ['consolidated_data', 'n_f', 'clra_input'];
+    if (!in_array($table, $allowedTables)) return [];
+    $sql = "SELECT client_name, state, location_code, month, year FROM $table";
+    $keys = [];
+    try {
+        $stmt = $pdo->query($sql);
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $key = build_key($row['client_name'] ?? '', $row['state'] ?? '', $row['location_code'] ?? '', $row['month'] ?? '', $row['year'] ?? '');
+            if ($key !== '') $keys[$key] = true;
+        }
+    } catch (Exception $e) {
+        // If column names differ or table empty, return empty set (safe fallback)
+        return [];
+    }
+    return $keys;
+}
+
+function clean_import_value($value)
+{
+    if ($value === null) return '';
     $value = trim((string)$value);
-    
-    // Handle Nil values (preserve as 'Nil')
-    if (strtolower($value) === 'nil') {
-        return 'Nil';
+    if ($value === '-') return '-';
+    if (strcasecmp($value, 'nil') === 0) return 'Nil';
+
+    // Fix floating point precision
+    if (is_numeric($value) && strpos($value, '.') !== false) {
+        $value = number_format((float)$value, 2, '.', '');
     }
-    
-    // Convert '-' to empty string (which will become NULL in database)
-    if ($value === '-') {
-        return '-';
-    }
-    
-    // Return empty string as-is (will become NULL)
-    if ($value === '') {
-        return '';
-    }
-    
-    // Return all other values as-is
+
     return $value;
 }
 
-function convert_excel_date($dateValue) {
-    // Handle Nil values first
-    if (strtolower(trim((string)$dateValue)) === 'nil') {
-        return ''; // Return empty string which will become NULL in database
-    }
+function convert_excel_date($value)
+{
+    if ($value === null || $value === '') return '';
+    $value = trim((string)$value);
+    if ($value === '-' || strcasecmp($value, 'nil') === 0) return $value;
 
-    if (empty($dateValue)) return '';
-    
-    if (is_numeric($dateValue)) {
-        try {
-            return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($dateValue)
-                ->format('Y-m-d');
-        } catch (Exception $e) {
-            return '';
+    try {
+        // If Excel date number
+        if (is_numeric($value) && $value > 10000) {
+            return Date::excelToDateTimeObject($value)->format('d-M-Y');
         }
+
+        // If already string date
+        $timestamp = strtotime($value);
+        return ($timestamp && $timestamp > 0) ? date('d-M-Y', $timestamp) : $value;
+    } catch (Exception $e) {
+        return $value;
     }
-    
-    // Handle string dates
-    $parsedDate = date('Y-m-d', strtotime($dateValue));
-    return $parsedDate ? $parsedDate : '';
 }
 
-// Import functions for all tables
-function insert_consolidated_data($pdo, $data, $uploaded_by) {
-    // Remove header row if exists
-    if (isset($data[1]['A']) && $data[1]['A'] === 'Month') {
-        array_shift($data);
-    }
-    
-    // Define column mapping from Excel columns (A, B, C, etc.) to database columns
+// ---------- INSERT FUNCTIONS WITH DUPLICATE CHECK ---------- //
+
+function insert_consolidated_data($pdo, $data, $uploaded_by)
+{
+    array_shift($data); // Skip header
+
     $column_mapping = [
-        'A' => 'month',
-        'B' => 'year', 
+         'A' => 'month',
+        'B' => 'year',
         'C' => 'employee_code',
         'D' => 'employee_name',
         'E' => 'father_name',
         'F' => 'date_of_birth',
         'G' => 'date_of_joining',
-        'H' => 'date_of_resign',
-        'I' => 'reason_for_exit',
-        'J' => 'gender',
-        'K' => 'designation',
-        'L' => 'category',
-        'M' => 'bank_name',
-        'N' => 'bank_account_number',
-        'O' => 'ifsc_code',
-        'P' => 'uan_no',
-        'Q' => 'pan_no',
-        'R' => 'ip',
-        'S' => 'aadhaar',
-        'T' => 'identification_marks',
-        'U' => 'nationality',
-        'V' => 'education_level',
-        'W' => 'client_name',
-        'X' => 'state',
-        'Y' => 'location_code',
-        'Z' => 'address',
-        'AA' => 'principal_employer_name',
-        'AB' => 'principal_employer_address',
-        'AC' => 'shift_details',
-        'AD' => 'nature_of_business',
-        'AE' => 'paid_days',
-        'AF' => 'rate_of_wage',
-        'AG' => 'basic',
-        'AH' => 'da',
-        'AI' => 'hra',
-        'AJ' => 'special_allowance',
-        'AK' => 'leave_travel_allowance',
-        'AL' => 'conveyance_allowance',
-        'AM' => 'over_time_wages',
-        'AN' => 'nh_fh_week_off_wages',
-        'AO' => 'medical_allowance',
-        'AP' => 'children_education_allowance',
-        'AQ' => 'incentive',
-        'AR' => 'other_allowance',
-        'AS' => 'night_shift_allowance',
-        'AT' => 'food_allowance',
-        'AU' => 'bonus',
-        'AV' => 'mob_allowance',
-        'AW' => 'vehicle_reimb',
-        'AX' => 'earned_gross',
-        'AY' => 'pf',
-        'AZ' => 'vpf',
-        'BA' => 'esi',
-        'BB' => 'p_tax',
-        'BC' => 'lwf',
-        'BD' => 'tds',
-        'BE' => 'advance_loan',
-        'BF' => 'deduction_for_damages_loss',
-        'BG' => 'fine',
-        'BH' => 'medical_insurance',
-        'BI' => 'other_deductions',
-        'BJ' => 'total_deductions',
-        'BK' => 'net_salary',
-        'BL' => 'payment_date',
-        'BM' => 'day_1',
-        'BN' => 'day_2',
-        'BO' => 'day_3',
-        'BP' => 'day_4',
-        'BQ' => 'day_5',
-        'BR' => 'day_6',
-        'BS' => 'day_7',
-        'BT' => 'day_8',
-        'BU' => 'day_9',
-        'BV' => 'day_10',
-        'BW' => 'day_11',
-        'BX' => 'day_12',
-        'BY' => 'day_13',
-        'BZ' => 'day_14',
-        'CA' => 'day_15',
-        'CB' => 'day_16',
-        'CC' => 'day_17',
-        'CD' => 'day_18',
-        'CE' => 'day_19',
-        'CF' => 'day_20',
-        'CG' => 'day_21',
-        'CH' => 'day_22',
-        'CI' => 'day_23',
-        'CJ' => 'day_24',
-        'CK' => 'day_25',
-        'CL' => 'day_26',
-        'CM' => 'day_27',
-        'CN' => 'day_28',
-        'CO' => 'day_29',
-        'CP' => 'day_30',
-        'CQ' => 'day_31',
-        'CR' => 'total_present_days',
-        'CS' => 'pl_opening',
-        'CT' => 'pl_availed',
-        'CU' => 'pl_credit',
-        'CV' => 'pl_closing',
-        'CW' => 'cl_opening',
-        'CX' => 'cl_availed',
-        'CY' => 'cl_credit',
-        'CZ' => 'cl_closing',
-        'DA' => 'sl_opening',
-        'DB' => 'sl_availed',
-        'DC' => 'sl_credit',
-        'DD' => 'sl_closing',
-        // OT columns
-        'DE' => 'ot_hours',
-        'DF' => 'fixed_ot_wages',
-        'DG' => 'normal_rate_of_wages',
-        'DH' => 'overtime_rate_of_wages',
-        'DI' => 'overtime_earnings',
-        'DJ' => 'date_on_ot_payment',
-        'DK' => 'ot_day_1', 'DL' => 'ot_day_2', 'DM' => 'ot_day_3', 'DN' => 'ot_day_4', 'DO' => 'ot_day_5',
-        'DP' => 'ot_day_6', 'DQ' => 'ot_day_7', 'DR' => 'ot_day_8', 'DS' => 'ot_day_9', 'DT' => 'ot_day_10',
-        'DU' => 'ot_day_11', 'DV' => 'ot_day_12', 'DW' => 'ot_day_13', 'DX' => 'ot_day_14', 'DY' => 'ot_day_15',
-        'DZ' => 'ot_day_16', 'EA' => 'ot_day_17', 'EB' => 'ot_day_18', 'EC' => 'ot_day_19', 'ED' => 'ot_day_20',
-        'EE' => 'ot_day_21', 'EF' => 'ot_day_22', 'EG' => 'ot_day_23', 'EH' => 'ot_day_24', 'EI' => 'ot_day_25',
-        'EJ' => 'ot_day_26', 'EK' => 'ot_day_27', 'EL' => 'ot_day_28', 'EM' => 'ot_day_29', 'EN' => 'ot_day_30',
-        'EO' => 'ot_day_31',
-        // Advance columns
-        'EP' => 'advance_wage_period_and_wage_payable',
-        'EQ' => 'date_and_amount_of_advance_given',
-        'ER' => 'purposes_for_which_advance_made',
-        'ES' => 'no_of_installments_by_which_advance_to_be_repaid',
-        'ET' => 'date_and_amount_of_each_installment_repaid',
-        'EU' => 'date_on_which_last_installment_was_paid',
-        // Damages columns
-        'EV' => 'particulars_of_damage_loss',
-        'EW' => 'date_of_damage',
-        'EX' => 'whether_worker_showed_cause_against_deduction',
-        'EY' => 'name_of_person_in_whose_presence_employees_explanation_was_heard',
-        'EZ' => 'amount_of_deduction_imposed',
-        'FA' => 'no_of_installment',
-        'FB' => 'first_installment_date',
-        'FC' => 'last_installment_date',
-        // Fines columns
-        'FD' => 'act_omission_for_which_fine_is_imposed',
-        'FE' => 'date_of_offences',
-        'FF' => 'whether_workman_showed_cause_against_fine',
-        'FG' => 'name_of_person_in_whose_presence_employees_explanation_for_fine',
-        'FH' => 'wage_period_and_wages_payable',
-        'FI' => 'amount_of_fine_imposed',
-        'FJ' => 'date_on_which_fine_realised',
-        // Maternity columns
-        'FK' => 'notice_date_section6',
-        'FL' => 'discharge_dismissal_date',
-        'FM' => 'pregnancy_proof_date_section6',
-        'FN' => 'child_birth_date',
-        'FO' => 'delivery_proof_details',
-        'FP' => 'illness_proof_date_section10',
-        'FQ' => 'advance_maternity_benefit_details',
-        'FR' => 'subsequent_maternity_benefit_details',
-        'FS' => 'bonus_payment_details_section8',
-        'FT' => 'leave_wages_details_section9',
-        'FU' => 'leave_wages_details_section10',
-        'FV' => 'nominated_person_name',
-        'FW' => 'death_details',
-        'FX' => 'child_survival_details',
-        // Accident columns
-        'FY' => 'date_of_notice',
-        'FZ' => 'time_of_notice',
-        'GA' => 'name_and_address_of_injured_person',
-        'GB' => 'insurance_no',
-        'GC' => 'shift_department_and_occupation_of_the_employee',
-        'GD' => 'injury_date',
-        'GE' => 'injury_time',
-        'GF' => 'injury_place',
-        'GG' => 'cause_of_injury',
-        'GH' => 'nature_of_injury',
-        'GI' => 'what_exactly_was_the_injured_person_doing',
-        'GJ' => 'name_occupation_address_and_signature_of_notice_givers',
-        'GK' => 'signature_and_designation_of_the_person_who_makes_the_entry',
-        'GL' => 'name_address_and_occupation_of_two_witnesses'
-    ];
-    
-    // Get all database column names in order
-    $db_columns = array_values($column_mapping);
-    $db_columns[] = 'uploaded_by'; // Add uploaded_by at the end
-    
-    // Create placeholders for SQL
-    $placeholders = implode(',', array_fill(0, count($db_columns), '?'));
-    
-    // Prepare SQL statement
-    $sql = "INSERT INTO consolidated_data (" . implode(',', $db_columns) . ") VALUES ($placeholders)";
-    $stmt = $pdo->prepare($sql);
-    
-    $successCount = 0;
-    $errorCount = 0;
-    $duplicateCount = 0;
-    
-    foreach ($data as $rowIndex => $row) {
-        $row = array_map('clean_import_value', $row);
-        
-        // Skip empty rows
-        if (count(array_filter($row, function($v) { return $v !== ''; })) === 0) {
-            continue;
-        }
+        'H' => 'date_of_confirmation',
+        'I' => 'date_of_resign',
+        'J' => 'reason_for_exit',
+        'K' => 'gender',
+        'L' => 'designation',
+        'M' => 'department',
+        'N' => 'category',
+        'O' => 'bank_name',
+        'P' => 'bank_account_number',
+        'Q' => 'ifsc_code',
+        'R' => 'uan_no',
+        'S' => 'pf_no',
+        'T' => 'esi_no',
+        'U' => 'pan_no',
+        'V' => 'aadhaar',
+        'W' => 'present_address',
+        'X' => 'client_name',
+        'Y' => 'state',
+        'Z' => 'location_code',
+        'AA' => 'address',
+        'AB' => 'principal_employer_name',
+        'AC' => 'principal_employer_address',
+        'AD' => 'shift_details',
+        'AE' => 'nature_of_business',
+        'AF' => 'paid_days',
+        'AG' => 'lop_days',
+        'AH' => 'fixed_basic',
+        'AI' => 'fixed_da',
+        'AJ' => 'fixed_hra',
+        'AK' => 'fixed_other_allowance',
+        'AL' => 'rate_of_wage_fixed_gross',
+        'AM' => 'basic',
+        'AN' => 'da',
+        'AO' => 'hra',
+        'AP' => 'special_allowance',
+        'AQ' => 'leave_travel_allowance',
+        'AR' => 'conveyance_allowance',
+        'AS' => 'over_time_allowance',
+        'AT' => 'nh_fh_week_off_wages',
+        'AU' => 'medical_allowance',
+        'AV' => 'children_education_allowance',
+        'AW' => 'incentive',
+        'AX' => 'night_shift_allowance',
+        'AY' => 'food_allowance',
+        'AZ' => 'bonus',
+        'BA' => 'mob_allowance',
+        'BB' => 'vehicle_reimb',
+        'BC' => 'other_allowance',
+        'BD' => 'earned_gross',
+        'BE' => 'pf',
+        'BF' => 'vpf',
+        'BG' => 'esi_deduction',
+        'BH' => 'p_tax',
+        'BI' => 'lwf',
+        'BJ' => 'tds',
+        'BK' => 'advance_loan',
+        'BL' => 'deduction_for_damages_loss',
+        'BM' => 'fine',
+        'BN' => 'medical_insurance',
+        'BO' => 'other_deductions',
+        'BP' => 'total_deductions',
+        'BQ' => 'net_salary',
+        'BR' => 'payment_date',
 
-        // Check for duplicate data before insertion
-        $client_name = $row['W'] ?? null;
-        $state = $row['X'] ?? null;
-        $location_code = $row['Y'] ?? null;
+        // Attendance
+        'BS' => 'day_1',
+        'BT' => 'day_2',
+        'BU' => 'day_3',
+        'BV' => 'day_4',
+        'BW' => 'day_5',
+        'BX' => 'day_6',
+        'BY' => 'day_7',
+        'BZ' => 'day_8',
+        'CA' => 'day_9',
+        'CB' => 'day_10',
+        'CC' => 'day_11',
+        'CD' => 'day_12',
+        'CE' => 'day_13',
+        'CF' => 'day_14',
+        'CG' => 'day_15',
+        'CH' => 'day_16',
+        'CI' => 'day_17',
+        'CJ' => 'day_18',
+        'CK' => 'day_19',
+        'CL' => 'day_20',
+        'CM' => 'day_21',
+        'CN' => 'day_22',
+        'CO' => 'day_23',
+        'CP' => 'day_24',
+        'CQ' => 'day_25',
+        'CR' => 'day_26',
+        'CS' => 'day_27',
+        'CT' => 'day_28',
+        'CU' => 'day_29',
+        'CV' => 'day_30',
+        'CW' => 'day_31',
+        'CX' => 'total_present_days',
+
+        // Leave
+        'CY' => 'pl_opening',
+        'CZ' => 'pl_availed',
+        'DA' => 'pl_credit',
+        'DB' => 'pl_closing',
+        'DC' => 'cl_opening',
+        'DD' => 'cl_availed',
+        'DE' => 'cl_credit',
+        'DF' => 'cl_closing',
+        'DG' => 'sl_opening',
+        'DH' => 'sl_availed',
+        'DI' => 'sl_credit',
+        'DJ' => 'sl_closing',
+
+        // OT
+        'DK' => 'ot_hours',
+        'DL' => 'fixed_ot_wages',
+        'DM' => 'extent_of_overtime_on_each_occasion',
+        'DN' => 'ot_day_1',
+        'DO' => 'ot_day_2',
+        'DP' => 'ot_day_3',
+        'DQ' => 'ot_day_4',
+        'DR' => 'ot_day_5',
+        'DS' => 'ot_day_6',
+        'DT' => 'ot_day_7',
+        'DU' => 'ot_day_8',
+        'DV' => 'ot_day_9',
+        'DW' => 'ot_day_10',
+        'DX' => 'ot_day_11',
+        'DY' => 'ot_day_12',
+        'DZ' => 'ot_day_13',
+        'EA' => 'ot_day_14',
+        'EB' => 'ot_day_15',
+        'EC' => 'ot_day_16',
+        'ED' => 'ot_day_17',
+        'EE' => 'ot_day_18',
+        'EF' => 'ot_day_19',
+        'EG' => 'ot_day_20',
+        'EH' => 'ot_day_21',
+        'EI' => 'ot_day_22',
+        'EJ' => 'ot_day_23',
+        'EK' => 'ot_day_24',
+        'EL' => 'ot_day_25',
+        'EM' => 'ot_day_26',
+        'EN' => 'ot_day_27',
+        'EO' => 'ot_day_28',
+        'EP' => 'ot_day_29',
+        'EQ' => 'ot_day_30',
+        'ER' => 'ot_day_31',
+
+        // Advance
+        'ES' => 'date_and_amount_of_advance_given',
+        'ET' => 'purposes_for_which_advance_made',
+        'EU' => 'no_of_installments_by_which_advance_repaid',
+        'EV' => 'date_and_amount_of_each_installment_repaid',
+        'EW' => 'date_on_which_last_installment_was_paid',
+
+        // Damages
+        'EX' => 'date_of_damage',
+        'EY' => 'whether_worker_showed_cause_against_deduction',
+        'EZ' => 'date_of_deduction_imposed',
+        'FA' => 'amount_of_deduction_imposed',
+        'FB' => 'no_of_installment',
+        'FC' => 'last_installment_date',
+
+        // Fine
+        'FD' => 'act_or_omission_for_which_fine_was_imposed',
+        'FE' => 'whether_workman_showed_cause_against_fine',
+        'FF' => 'nature_and_date_of_offence_for_which_fine_imposed',
+        'FG' => 'date_amount_of_fine_imposed',
+        'FH' => 'date_on_which_fine_realised',
+
+        // Maternity
+        'FI' => 'date_on_which_the_woman_gives_notice_under_section_6',
+        'FJ' => 'date_of_discharge_dismissal_if_any',
+        'FK' => 'date_of_production_of_proof_of_pregnancy_under_section_6',
+        'FL' => 'date_of_birth_of_child',
+        'FM' => 'date_of_production_proof_of_delivery_miscarriage',
+        'FN' => 'date_of_production_of_proof_illness_referred_in_section_10',
+        'FO' => 'date_with_amount_of_maternity_paid_in_advance_of_delivery',
+        'FP' => 'date_with_the_amount_of_subsequent_payment_of_maternity_benefit',
+        'FQ' => 'date_with_the_amount_of_bonus_if_paid_under_section_8',
+        'FR' => 'date_wages_paid_account_leave_under_section_9_15_and_section_9a',
+        'FS' => 'date_amount_of_wages_paid_account_leave_under_section_10',
+        'FT' => 'name_of_the_person_nominated_by_the_woman_under_section_6',
+        'FU' => 'woman_dies_maternity_amount_date_of_payment',
+        'FV' => 'woman_dies_child_survives_to_amount_maternity_paid',
+
+        // Accident
+        'FW' => 'date_of_notice',
+        'FX' => 'time_of_notice',
+        'FY' => 'number_of_days_injured_person_was_absent_from_work',
+        'FZ' => 'insurance_no',
+        'GA' => 'date_of_return_of_injured_person_to_work',
+        'GB' => 'cause_of_injury',
+        'GC' => 'nature_of_injury',
+        'GD' => 'date_of_injury',
+        'GE' => 'time_details_of_injury',
+        'GF' => 'place_details_of_injury',
+        'GG' => 'exactly_injured_person_doing_at_the_time_of_accident',
+        'GH' => 'name_address_signature_thumb_impression_person_giving_notice',
+        'GI' => 'name_address_and_occupation_of_two_witnesses',
+
+        // Factory & Medical
+        'GJ' => 'part_of_factory_e_g_name_of_unit_of_room',
+        'GK' => 'wall_and_other_parts',
+        'GL' => 'treatment_whether_lime_washed_painted_vanished_or_oiled',
+        'GM' => 'date_painting_oiling_carried_out_according_english_calendar',
+        'GN' => 'raw_materials_products_or_by_products_exposed_to',
+        'GO' => 'dates_of_medical_examination',
+        'GP' => 'medical_examination_results',
+        'GQ' => 'signs_and_symptoms_observed_during_examination',
+        'GR' => 'nature_of_tests_and_results_thereof',
+        'GS' => 'declared_unfit_work_state_period_suspension_reasons_in_detail',
+        'GT' => 'whether_certificate_of_unfitness_issued_to_the_worker',
+        'GU' => 're_certified_fit_to_resume_duty_on',
+
+        // Suspension
+        'GV' => 'nature_of_offence_committed_and_date_of_offence',
+        'GW' => 'date_of_suspension',
+        'GX' => 'date_of_revocation_of_suspension',
+        'GY' => 'rate_which_subsistence_allowance_calculated_period',
+        'GZ' => 'amount_subsistence_allowance_paid_and_date_of_payment'
+    ];
+
+    $columns = array_values($column_mapping);
+    $columns[] = 'uploaded_by';
+    $sql = "INSERT INTO consolidated_data (" . implode(',', $columns) . ") VALUES (" . implode(',', array_fill(0, count($columns), '?')) . ")";
+    $stmt = $pdo->prepare($sql);
+
+    // snapshot existing keys BEFORE this upload
+    $existingKeys = get_existing_keys_for_table($pdo, 'consolidated_data');
+
+    $duplicate_found = false;
+    $inserted_rows = 0;
+    $skipped_samples = [];
+
+    $date_fields = [
+        'date_of_birth',
+        'date_of_joining',
+        'date_of_confirmation',
+        'date_of_resign',
+        'payment_date'
+    ];
+
+    foreach ($data as $row) {
+        $row = array_map('clean_import_value', $row);
+        if (count(array_filter($row, fn($v) => $v !== '')) === 0) continue;
+
+        // Build key for duplicate check
+        $client_name = $row['X'] ?? null;
+        $state = $row['Y'] ?? null;
+        $location_code = $row['Z'] ?? null;
         $month = $row['A'] ?? null;
         $year = $row['B'] ?? null;
-        
-        if ($client_name && $state && $location_code && $month && $year) {
-            if (check_duplicate_data($pdo, $client_name, $state, $location_code, $month, $year)) {
-                $duplicateCount++;
-                continue; // Skip this row
-            }
+
+        $key = '';
+        if ($client_name !== null && $state !== null && $location_code !== null && $month !== null && $year !== null) {
+            $key = build_key($client_name, $state, $location_code, $month, $year);
+        }
+
+        // Check if key exists in pre-existing DB snapshot
+        if ($key !== '' && isset($existingKeys[$key])) {
+            $duplicate_found = true;
+            $skipped_samples[] = "{$client_name} / {$state} / {$location_code} / {$month} / {$year}";
+            continue;
         }
 
         $values = [];
-        
-        // Process each column according to mapping
         foreach ($column_mapping as $excel_col => $db_col) {
-            $value = $row[$excel_col] ?? null;
-            
-            // Handle date fields
-            $date_fields = ['date_of_birth', 'date_of_joining', 'date_of_resign', 'payment_date', 
-                           'date_on_ot_payment', 'date_of_damage', 'first_installment_date', 
-                           'last_installment_date', 'date_of_offences', 'date_on_which_fine_realised',
-                           'notice_date_section6', 'discharge_dismissal_date', 'pregnancy_proof_date_section6',
-                           'child_birth_date', 'illness_proof_date_section10', 'date_of_notice', 'injury_date'];
-            
-            if (in_array($db_col, $date_fields) && is_numeric($value)) {
-                $value = Date::excelToDateTimeObject($value)->format('Y-m-d');
+            $val = $row[$excel_col] ?? '';
+
+            // Convert date fields
+            if (in_array($db_col, $date_fields)) {
+                $val = convert_excel_date($val);
             }
-            
-            $values[] = $value;
+
+            $values[] = $val;
         }
-        
-        // Add uploaded_by as the last value
+
         $values[] = $uploaded_by;
-        
+
         try {
             $stmt->execute($values);
-            $successCount++;
-        } catch (PDOException $e) {
-            $errorCount++;
-            error_log("Error inserting CONSOLIDATED_DATA record: " . $e->getMessage());
-            // Continue with next record even if one fails
-            continue;
+            $inserted_rows++;
+        } catch (Exception $e) {
+            error_log("Row insert failed: " . $e->getMessage());
         }
     }
-    
-    error_log("Inserted $successCount records into consolidated_data with $errorCount errors and $duplicateCount duplicates skipped");
-    return ['duplicate_found' => ($duplicateCount > 0), 'inserted_rows' => $successCount, 'duplicate_count' => $duplicateCount];
+
+    return [
+        'duplicate_found' => $duplicate_found,
+        'inserted_rows' => $inserted_rows,
+        'skipped_samples' => $skipped_samples
+    ];
 }
 
-function insert_n_f($pdo, $data, $uploaded_by) {
-    // Define column mapping for NFH
+function insert_n_f($pdo, $data, $uploaded_by)
+{
+    array_shift($data); // Skip header
+
     $column_mapping = [
         'A' => 'client_name',
-        'B' => 'state', 
+        'B' => 'state',
         'C' => 'location_code',
-        'D' => 'address',
-        'E' => 'principal_employer_name',
-        'F' => 'principal_employer_address',
-        'G' => 'month',
-        'H' => 'year',
-        'I' => 'holiday_date',
-        'J' => 'description',
-        'K' => 'leave_type',
-        'L' => 'days'
+        'D' => 'month',
+        'E' => 'year',
+        'F' => 'holiday_date',
+        'G' => 'description',
+        'H' => 'leave_type'
     ];
+
+    $columns = array_values($column_mapping);
+    $columns[] = 'uploaded_by';
+    $stmt = $pdo->prepare("INSERT INTO n_f (" . implode(',', $columns) . ") VALUES (" . implode(',', array_fill(0, count($columns), '?')) . ")");
     
-    // Get all database column names in order
-    $db_columns = array_values($column_mapping);
-    $db_columns[] = 'uploaded_by';
-    
-    // Create placeholders for SQL
-    $placeholders = implode(',', array_fill(0, count($db_columns), '?'));
-    
-    // Prepare SQL statement
-    $sql = "INSERT INTO n_f (" . implode(',', $db_columns) . ") VALUES ($placeholders)";
-    $stmt = $pdo->prepare($sql);
+    // snapshot existing keys BEFORE this upload
+    $existingKeys = get_existing_keys_for_table($pdo, 'n_f');
+
+    $duplicate_found = false;
+    $inserted_rows = 0;
+    $skipped_samples = [];
 
     foreach ($data as $row) {
         $row = array_map('clean_import_value', $row);
-        
-        $values = [];
-        
-        // Process each column according to mapping
-        foreach ($column_mapping as $excel_col => $db_col) {
-            $value = $row[$excel_col] ?? null;
-            
-            // Handle date field
-            if ($db_col === 'holiday_date' && is_numeric($value)) {
-                $value = Date::excelToDateTimeObject($value)->format('Y-m-d');
-            }
-            
-            $values[] = $value;
+        if (count(array_filter($row, fn($v) => $v !== '')) === 0) continue;
+
+        // Build key for duplicate check
+        $client_name = $row['A'] ?? null;
+        $state = $row['B'] ?? null;
+        $location_code = $row['C'] ?? null;
+        $month = $row['D'] ?? null;
+        $year = $row['E'] ?? null;
+
+        $key = '';
+        if ($client_name !== null && $state !== null && $location_code !== null && $month !== null && $year !== null) {
+            $key = build_key($client_name, $state, $location_code, $month, $year);
         }
-        
-        // Add uploaded_by as the last value
-        $values[] = $uploaded_by;
-        
-        try {
-            $stmt->execute($values);
-        } catch (PDOException $e) {
-            error_log("Error inserting N_F record: " . $e->getMessage());
+
+        // Check if key exists in pre-existing DB snapshot
+        if ($key !== '' && isset($existingKeys[$key])) {
+            $duplicate_found = true;
+            $skipped_samples[] = "{$client_name} / {$state} / {$location_code} / {$month} / {$year}";
             continue;
         }
+
+        $values = [];
+        foreach ($column_mapping as $excel_col => $db_col) {
+            $val = $row[$excel_col] ?? '';
+            if ($db_col === 'holiday_date') $val = convert_excel_date($val);
+            $values[] = $val;
+        }
+
+        $values[] = $uploaded_by;
+
+        try {
+            $stmt->execute($values);
+            $inserted_rows++;
+        } catch (Exception $e) {
+            error_log($e->getMessage());
+        }
     }
+
+    return [
+        'duplicate_found' => $duplicate_found,
+        'inserted_rows' => $inserted_rows,
+        'skipped_samples' => $skipped_samples
+    ];
 }
 
-function insert_clra_input($pdo, $data, $uploaded_by) {
-    // Define column mapping for NFH
+function insert_clra_input($pdo, $data, $uploaded_by)
+{
+    array_shift($data);
+
     $column_mapping = [
         'A' => 'client_name',
-        'B' => 'state', 
-        'C' => 'location_code',
-        'D' => 'address',
-        'E' => 'principal_employer_name',
-        'F' => 'principal_employer_address',
-        'G' => 'month',
-        'H' => 'year',
-        'I' => 'holiday_date',
-        'J' => 'description',
-        'K' => 'leave_type',
-        'L' => 'days'
+        'B' => 'state',
+        'C' => 'city',
+        'D' => 'location_name',
+        'E' => 'location_code',
+        'F' => 'branch_address',
+        'G' => 'employer_name',
+        'H' => 'employer_address',
+        'I' => 'month',
+        'J' => 'year',
+        'K' => 'name_of_contractor',
+        'L' => 'address_of_contractor',
+        'M' => 'nature_of_work_on_contract',
+        'N' => 'from_date',
+        'O' => 'to_date',
+        'P' => 'maximum_number_of_workmen_employed_by_contractor'
     ];
+
+    $columns = array_values($column_mapping);
+    $columns[] = 'uploaded_by';
+    $stmt = $pdo->prepare("
+        INSERT INTO clra_input (" . implode(',', $columns) . ")
+        VALUES (" . implode(',', array_fill(0, count($columns), '?')) . ")
+    ");
     
-    // Get all database column names in order
-    $db_columns = array_values($column_mapping);
-    $db_columns[] = 'uploaded_by';
-    
-    // Create placeholders for SQL
-    $placeholders = implode(',', array_fill(0, count($db_columns), '?'));
-    
-    // Prepare SQL statement
-    $sql = "INSERT INTO clra_input (" . implode(',', $db_columns) . ") VALUES ($placeholders)";
-    $stmt = $pdo->prepare($sql);
+    // snapshot existing keys BEFORE this upload
+    $existingKeys = get_existing_keys_for_table($pdo, 'clra_input');
+
+    $duplicate_found = false;
+    $inserted_rows = 0;
+    $skipped_samples = [];
 
     foreach ($data as $row) {
         $row = array_map('clean_import_value', $row);
-        
-        $values = [];
-        
-        // Process each column according to mapping
-        foreach ($column_mapping as $excel_col => $db_col) {
-            $value = $row[$excel_col] ?? null;
-            
-            // Handle date field
-            if ($db_col === 'holiday_date' && is_numeric($value)) {
-                $value = Date::excelToDateTimeObject($value)->format('Y-m-d');
-            }
-            
-            $values[] = $value;
+        if (count(array_filter($row, fn($v) => $v !== '')) === 0) continue;
+
+        // Build key for duplicate check
+        $client_name = $row['A'] ?? null;
+        $state = $row['B'] ?? null;
+        $location_code = $row['E'] ?? null;
+        $month = $row['I'] ?? null;
+        $year = $row['J'] ?? null;
+
+        $key = '';
+        if ($client_name !== null && $state !== null && $location_code !== null && $month !== null && $year !== null) {
+            $key = build_key($client_name, $state, $location_code, $month, $year);
         }
-        
-        // Add uploaded_by as the last value
-        $values[] = $uploaded_by;
-        
-        try {
-            $stmt->execute($values);
-        } catch (PDOException $e) {
-            error_log("Error inserting clra_input record: " . $e->getMessage());
+
+        // Check if key exists in pre-existing DB snapshot
+        if ($key !== '' && isset($existingKeys[$key])) {
+            $duplicate_found = true;
+            $skipped_samples[] = "{$client_name} / {$state} / {$location_code} / {$month} / {$year}";
             continue;
         }
+
+        $values = [];
+        foreach ($column_mapping as $excel_col => $db_col) {
+            $val = $row[$excel_col] ?? '';
+
+            // Only format date columns
+            if (in_array($db_col, ['from_date', 'to_date'])) {
+                $converted = convert_excel_date($val);
+                if (!empty($converted)) {
+                    $timestamp = strtotime($converted);
+                    $val = $timestamp ? date('d-M-Y', $timestamp) : $converted;
+                }
+            }
+
+            $values[] = $val;
+        }
+
+        $values[] = $uploaded_by;
+
+        try {
+            $stmt->execute($values);
+            $inserted_rows++;
+        } catch (Exception $e) {
+            error_log("Insert failed: " . $e->getMessage());
+        }
     }
+
+    return [
+        'duplicate_found' => $duplicate_found,
+        'inserted_rows' => $inserted_rows,
+        'skipped_samples' => $skipped_samples
+    ];
 }
 
-// Main Upload Handling
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['excel_file']['tmp_name'])) {
+// ---------- MAIN ---------- //
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['excel_file']['tmp_name'])) {
     try {
         $filePath = $_FILES['excel_file']['tmp_name'];
-        $spreadsheet = IOFactory::load($filePath);
-
-        $duplicate_message = '';
+        $reader = IOFactory::createReaderForFile($filePath);
+        $spreadsheet = $reader->load($filePath);
+        $uploaded_by = $_SESSION['user_name'];
+        
+        $duplicate_messages = [];
         $inserted_total = 0;
-        $duplicate_total = 0;
 
         foreach ($spreadsheet->getSheetNames() as $sheetName) {
             $sheet = $spreadsheet->getSheetByName($sheetName);
             if (!$sheet) continue;
 
-            $data = $sheet->toArray(null, true, true, true);
-            
-            // Remove header row if detected
-            $firstCell = $data[1]['A'] ?? '';
-            if (is_string($firstCell) && preg_match('/month|client name|s_no/i', $firstCell)) {
-                array_shift($data);
+            $data = [];
+            foreach ($sheet->getRowIterator() as $row) {
+                $rowData = [];
+                foreach ($row->getCellIterator() as $cell) {
+                    $rowData[$cell->getColumn()] = $cell->getFormattedValue();
+                }
+                $data[] = $rowData;
             }
 
-            // Filter out empty rows
-            $data = array_filter($data, function($row) {
-                return !empty(array_filter($row, function($value) {
-                    return $value !== null && $value !== '';
-                }));
-            });
+            $data = array_filter($data, fn($r) => !empty(array_filter($r, fn($v) => $v !== null && $v !== '')));
+            if (empty($data)) continue;
 
-            if (empty($data)) {
-                continue; // Skip empty sheets
-            }
-
-            $normalizedSheetName = strtolower(str_replace([' ', '&'], ['_', '_'], trim($sheetName)));
-
-            switch ($normalizedSheetName) {
-                case 'consolidated_data':
-                    $result = insert_consolidated_data($pdo, $data, $uploaded_by);
-                    if ($result['duplicate_found']) {
-                        $duplicate_message = "Some data already exists and was skipped.";
-                        $duplicate_total += $result['duplicate_count'];
-                    }
-                    $inserted_total += $result['inserted_rows'];
-                    break;
-                case 'n_f':
-                    insert_n_f($pdo, $data, $uploaded_by);
-                    break;
-                case 'clra_input':
-                    insert_n_f($pdo, $data, $uploaded_by);
-                    break;
-                default:
-                    // Skip unknown sheets
-                    error_log("Unknown sheet name: $sheetName");
-                    break;
+            $normalized = strtolower(trim($sheetName));
+            if ($normalized === 'consolidated data') {
+                $res = insert_consolidated_data($pdo, $data, $uploaded_by);
+                if ($res['duplicate_found']) {
+                    $duplicate_messages[] = "Consolidated Data: some rows already existed before this upload and were skipped. Example(s): " . implode(' ; ', array_slice($res['skipped_samples'], 0, 5));
+                }
+                $inserted_total += $res['inserted_rows'];
+            } elseif ($normalized === 'n&f') {
+                $res = insert_n_f($pdo, $data, $uploaded_by);
+                if ($res['duplicate_found']) {
+                    $duplicate_messages[] = "N&F: some rows already existed before this upload and were skipped. Example(s): " . implode(' ; ', array_slice($res['skipped_samples'], 0, 5));
+                }
+                $inserted_total += $res['inserted_rows'];
+            } elseif ($normalized === 'clra input') {
+                $res = insert_clra_input($pdo, $data, $uploaded_by);
+                if ($res['duplicate_found']) {
+                    $duplicate_messages[] = "CLRA Input: some rows already existed before this upload and were skipped. Example(s): " . implode(' ; ', array_slice($res['skipped_samples'], 0, 5));
+                }
+                $inserted_total += $res['inserted_rows'];
+            } else {
+                error_log("Skipped unknown sheet: $sheetName");
+                continue;
             }
         }
 
-        // Log the file upload activity
-        $log_sql = "INSERT INTO upload_logs (file_name, uploaded_by, uploaded_at) VALUES (?, ?, NOW())";
-        $log_stmt = $pdo->prepare($log_sql);
-        $log_stmt->execute([$_FILES['excel_file']['name'], $uploaded_by]);
+        // Log upload and set appropriate messages
+        if ($inserted_total > 0) {
+            $pdo->prepare("INSERT INTO upload_logs (file_name, uploaded_by, uploaded_at) VALUES (?, ?, NOW())")
+                ->execute([$_FILES['excel_file']['name'], $uploaded_by]);
 
-        // Set appropriate session message
-        if (!empty($duplicate_message)) {
-            $_SESSION['warning'] = $duplicate_message . " " . $inserted_total . " new records inserted successfully. " . $duplicate_total . " duplicate records skipped.";
+            if (!empty($duplicate_messages)) {
+                $_SESSION['warning'] = $inserted_total . " new records inserted. Some data was skipped as it already exists.";
+            } else {
+                $_SESSION['success'] = "Upload complete. Total rows inserted: $inserted_total";
+            }
+            header("Location: temp2.php");
         } else {
-            $_SESSION['success'] = "File uploaded successfully by " . $uploaded_by . ". " . $inserted_total . " records inserted.";
+            // If NO new records inserted (only duplicates), stay on upload page
+            $_SESSION['warning'] = "Data already exists. No new records inserted.";
+            $referer = $_SERVER['HTTP_REFERER'] ?? 'temp2.php';
+            header("Location: $referer");
         }
-        
-        header("Location: temp2.php");
         exit();
     } catch (Exception $e) {
-        $_SESSION['error'] = "Error processing file: " . $e->getMessage();
+        $_SESSION['error'] = "Upload failed: " . $e->getMessage();
         header("Location: temp2.php");
         exit();
     }
 } else {
-    $_SESSION['error'] = "File not uploaded properly.";
+    $_SESSION['error'] = "No file uploaded.";
     header("Location: temp2.php");
     exit();
 }
-?>

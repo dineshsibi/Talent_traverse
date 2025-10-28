@@ -45,12 +45,12 @@ if (isset($_SESSION['success'])) {
       null;
     }
   </script>
- 
+
 </head>
 
 <body>
 
- <!-- Navbar -->
+  <!-- Navbar -->
   <nav class="navbar">
     <div class="logo">
       <img src="./img/Talent.png" alt="Logo" />
@@ -96,7 +96,7 @@ if (isset($_SESSION['success'])) {
               </button>
             </form>
           </div>
-          
+
           <div class="content-header">
             <h1 id="content-title">Compliance Details</h1>
             <p class="content-description" id="content-description">Select an option from the sidebar to view details.</p>
@@ -124,38 +124,86 @@ if (isset($_SESSION['success'])) {
       const buttonContainer = document.getElementById('button-container');
       const downloadFileInput = document.getElementById('download-file-input');
       const downloadForm = document.getElementById('download-form');
-      
+
       // Get the category from PHP
       const category = '<?php echo $category; ?>';
-      
+
       // Define the menu options for each category
       const categoryOptions = {
-        establishment: [
-          { text: "Registers", type: "se", url: "#" },
-          { text: "Returns", url: "establishment_compliance.php?service=returns" },
-          { text: "Display Notices", url: "establishment_compliance.php?service=notices" },
-          { text: "POG Forms", url: "establishment_compliance.php?service=pog" }
+        establishment: [{
+            text: "Registers",
+            type: "se",
+            url: "#"
+          },
+          {
+            text: "Returns",
+            url: "establishment_compliance.php?service=returns"
+          },
+          {
+            text: "Display Notices",
+            url: "establishment_compliance.php?service=notices"
+          },
+          {
+            text: "POG Forms",
+            url: "establishment_compliance.php?service=pog"
+          }
         ],
-        payroll: [
-          { text: "Remittances", url: "payroll_compliance.php?service=pf" },
-          { text: "Gratuity", url: "payroll_compliance.php?service=tds" },
-          { text: "Minimum Wages", url: "payroll_compliance.php?service=esi" },
-          { text: "Overtime and Holiday", url: "payroll_compliance.php?service=bonus" }
+        payroll: [{
+            text: "Remittances",
+            url: "payroll_compliance.php?service=pf"
+          },
+          {
+            text: "Gratuity",
+            url: "payroll_compliance.php?service=tds"
+          },
+          {
+            text: "Minimum Wages",
+            url: "payroll_compliance.php?service=esi"
+          },
+          {
+            text: "Overtime and Holiday",
+            url: "payroll_compliance.php?service=bonus"
+          }
         ],
-        contract: [
-          { text: "Registers", type: "clra", url: "#" },
-          { text: "Returns", url: "contract_compliance.php?service=license" },
-          { text: "Display Notices", url: "contract_compliance.php?service=agreement" },
-          { text: "POG Forms", url: "contract_compliance.php?service=monitoring" }
+        contract: [{
+            text: "Registers",
+            type: "clra",
+            url: "#"
+          },
+          {
+            text: "Returns",
+            url: "contract_compliance.php?service=license"
+          },
+          {
+            text: "Display Notices",
+            url: "contract_compliance.php?service=agreement"
+          },
+          {
+            text: "POG Forms",
+            url: "contract_compliance.php?service=monitoring"
+          }
         ],
-        factory: [
-          { text: "Registers", url: "factory_compliance.php?service=boiler" },
-          { text: "Returns", url: "factory_compliance.php?service=license" },
-          { text: "Display Notices", url: "factory_compliance.php?service=safety" },
-          { text: "Up coming", url: "factory_compliance.php?service=water" }
+        factory: [{
+            text: "Registers",
+            type: "factory",
+            url: "#"
+          },
+          {
+            text: "Returns",
+            url: "factory_compliance.php?service=license"
+          },
+          {
+            text: "Display Notices",
+            url: "factory_compliance.php?service=safety"
+          },
+          {
+            text: "Up coming",
+            url: "factory_compliance.php?service=water"
+          }
         ]
+
       };
-      
+
       // Define titles and descriptions for each category
       const categoryDetails = {
         establishment: {
@@ -234,20 +282,20 @@ if (isset($_SESSION['success'])) {
 
       // Variable to store the current register type
       let currentRegisterType = '';
-      
+
       // Update the sidebar and content based on the selected category
       updateComplianceDetails(category);
-      
+
       // Function to update the compliance details based on category
       function updateComplianceDetails(category) {
         // Update titles
         sidebarTitle.textContent = "Products";
         contentTitle.textContent = categoryDetails[category].title;
         contentDescription.textContent = categoryDetails[category].description;
-        
+
         // Clear previous menu items
         sidebarMenu.innerHTML = '';
-        
+
         // Add new menu items
         categoryOptions[category].forEach(item => {
           const li = document.createElement('li');
@@ -257,26 +305,26 @@ if (isset($_SESSION['success'])) {
           a.setAttribute('data-type', item.type || '');
           a.addEventListener('click', function(e) {
             e.preventDefault();
-            
+
             // Remove active class from all links
             document.querySelectorAll('.sidebar-menu a').forEach(link => {
               link.classList.remove('active');
             });
-            
+
             // Add active class to clicked link
             this.classList.add('active');
-            
+
             // Update content title and description based on the clicked menu item
             contentTitle.textContent = menuItemTitles[category][item.text];
             contentDescription.textContent = menuItemDescriptions[category][item.text];
-            
+
             // Clear the content area completely (except upload message)
             const uploadMessage = contentArea.querySelector('.upload-message-container');
             contentArea.innerHTML = '';
             if (uploadMessage) {
               contentArea.appendChild(uploadMessage);
             }
-            
+
             // If this is a "Registers" item, show the upload containers and buttons
             if (item.text === "Registers" && item.type) {
               currentRegisterType = item.type;
@@ -299,14 +347,14 @@ if (isset($_SESSION['success'])) {
           li.appendChild(a);
           sidebarMenu.appendChild(li);
         });
-        
+
         // Reset content area (preserve upload message if exists)
         const uploadMessage = contentArea.querySelector('.upload-message-container');
         contentArea.innerHTML = '';
         if (uploadMessage) {
           contentArea.appendChild(uploadMessage);
         }
-        
+
         const welcomeMessage = document.createElement('div');
         welcomeMessage.className = 'welcome-message';
         welcomeMessage.innerHTML = `
@@ -315,21 +363,33 @@ if (isset($_SESSION['success'])) {
           <p>Select an option from the sidebar to get started.</p>
         `;
         contentArea.appendChild(welcomeMessage);
-        
+
         // Hide buttons by default
         hideButtons();
       }
-      
+
       // Function to show upload containers
       function showUploadContainers(type) {
         // Hide any existing upload containers
         hideUploadContainers();
-        
+
         // Create upload containers
         const uploadType = type;
-        const uploadScript = (uploadType === 'clra') ? 'handle_upload1.php' : 'handle_upload.php';
-        const uploadTitle = (uploadType === 'clra') ? 'Upload CLRA Excel Form' : 'Upload S&E Excel Form (Input / NFH / CLRA)';
-        
+        let uploadScript = '';
+        let uploadTitle = '';
+
+        if (uploadType === 'clra') {
+          uploadScript = 'handle_upload1.php';
+          uploadTitle = 'Upload CLRA Excel Form';
+        } else if (uploadType === 'factory') {
+          uploadScript = 'handle_upload2.php';
+          uploadTitle = 'Upload Factory Excel Form';
+        } else {
+          uploadScript = 'handle_upload.php';
+          uploadTitle = 'Upload S&E Excel Form (Input / NFH / CLRA)';
+        }
+
+
         // Create upload container
         const uploadContainer = document.createElement('div');
         uploadContainer.className = 'upload-container';
@@ -341,7 +401,7 @@ if (isset($_SESSION['success'])) {
           </form>
           <div id="upload-status"></div>
         `;
-        
+
         // Create generate section
         const generateSection = document.createElement('div');
         generateSection.className = 'generate-section';
@@ -352,13 +412,13 @@ if (isset($_SESSION['success'])) {
             <span class="arrow">>>></span>
           </button>
         `;
-        
+
         // Add animation to the generate button
         const generateBtn = generateSection.querySelector('#generate-button');
         setTimeout(() => {
           generateBtn.classList.add('animate');
         }, 1000);
-        
+
         // Add event listener to the Generate button
         generateBtn.addEventListener('click', function() {
           // Redirect based on the current register type
@@ -366,9 +426,12 @@ if (isset($_SESSION['success'])) {
             window.location.href = 'temp.php';
           } else if (currentRegisterType === 'clra') {
             window.location.href = 'temp1.php';
+          } else if (currentRegisterType === 'factory') {
+            window.location.href = 'temp2.php';
           }
         });
-        
+
+
         // Add form submission handler
         const uploadForm = uploadContainer.querySelector('#upload-form');
         uploadForm.addEventListener('submit', function(e) {
@@ -376,36 +439,43 @@ if (isset($_SESSION['success'])) {
           submitBtn.disabled = true;
           submitBtn.textContent = 'Uploading...';
         });
-        
+
         // Add container to content area
         contentArea.appendChild(uploadContainer);
         contentArea.appendChild(generateSection);
-        
+
         // Show the container
         uploadContainer.style.display = 'block';
       }
-      
+
       // Function to show buttons
       function showButtons(type) {
-        const formatFile = (type === 'clra') ? 'CLRA Format.xlsx' : 'S&E Format.xlsx';
+        let formatFile = 'S&E Format.xlsx';
+        if (type === 'clra') {
+          formatFile = 'CLRA Format.xlsx';
+        } else if (type === 'factory') {
+          formatFile = 'Factory Format.xlsx';
+        }
+
         downloadFileInput.value = formatFile;
         buttonContainer.style.display = 'flex';
       }
-      
+
       // Function to hide buttons
       function hideButtons() {
         buttonContainer.style.display = 'none';
       }
-      
+
       // Function to hide upload containers
       function hideUploadContainers() {
         const existingUpload = document.querySelector('.upload-container');
         if (existingUpload) existingUpload.remove();
-        
+
         const existingGenerate = document.querySelector('.generate-section');
         if (existingGenerate) existingGenerate.remove();
       }
     });
   </script>
 </body>
+
 </html>
