@@ -241,10 +241,16 @@ try {
           $fine = (float)($row['fine'] ?? 0);
           $deduction = (float)($row['total_deductions'] ?? 0);
           $rate_of_wage = (float)($row['rate_of_wage'] ?? 0);
+          $gross = (float)($row['earned_gross'] ?? 0);
+          $basic = (float)($row['basic'] ?? 0);
+          $da = (float)($row['da'] ?? 0);
+          $over_time_wages = (float)($row['over_time_wages'] ?? 0);
+          $leave_travel_allowance = (float)($row['leave_travel_allowance'] ?? 0);
 
           $overtime_rate =  $rate_of_wage / 30 / 8 * 2;
           $provident_fund = $pf + $vpf;
           $other_deductions = $deduction - $pf + $vpf + $esi + $fine;
+          $other_allowance = $gross - $basic + $da + $over_time_wages + $leave_travel_allowance;
           ?>
           <tr>
             <td><?= $i++ ?></td>
@@ -254,13 +260,13 @@ try {
             <td><?= htmlspecialchars($row['designation'] ?? '') ?></td>
             <td>Nil</td>
             <td><?= htmlspecialchars($row['month'] ?? '') ?></td>
-            <td><?= htmlspecialchars($row['paid_days'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['total_present_days'] ?? '') ?></td>
             <td><?= htmlspecialchars($row['total_present_days'] ?? '') ?></td>
             <td>Nil</td>
             <td><?= htmlspecialchars($overtime_rate ?? '') ?></td>
             <td><?= htmlspecialchars($row['basic'] ?? '') ?></td>
             <td><?= htmlspecialchars($row['da'] ?? '') ?></td>
-            <td>Nil</td>
+            <td><?= htmlspecialchars($other_allowance ?? '') ?></td>
             <td><?= htmlspecialchars($row['over_time_wages'] ?? '') ?></td>
             <td><?= htmlspecialchars($row['leave_travel_allowance'] ?? '') ?></td>
             <td><?= htmlspecialchars($row['earned_gross'] ?? '') ?></td>

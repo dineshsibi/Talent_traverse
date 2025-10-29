@@ -138,7 +138,7 @@ try {
           8. Form No. XVII (Muster Roll) Rule 52(2)(a) of Orissa Inter-State Migrant Workmen (RE&CS) Rules, 1980.
           9. Form No. XVIII(Register of Wages) Rule 52(2)(a) of Orissa Inter-State Migrant Workmen (RE&CS) Rules, 1980
           10. Form No. 10 (Register of payment) of Orissa Shops and Commercial Establishment Rules, 1958.
-          11. Form No. 8 (Daily record of works & orders relating to compensating Leave and Deduction from wages of Orissa Shops and Commercial Establishment Rules, 1958.
+          11. Form No. 8 (Daily record of works & orders relating to compensating Leave and Deduction from wages of Orissa Shops and Commercial Establishment Rules, 1958).
           12. Form X (Muster Roll) Rule 36 of Orissa Motor Transport Workers Rules, 1966.
           13. From XIII (Wages) Rule 77(2)(a) of Orissa Contract Labour (R&A), Rules, 1975.
           14. Form XII (Muster Roll) Rule 77(2)(a) of Orissa Contract Labour (R&A), Rules, 1975.
@@ -179,7 +179,7 @@ try {
         <th rowspan="2">ESIC No</th>
         <th rowspan="2">PF No</th>
         <th colspan="31" style="text-align: center;">ATTENDANCE<br>Units of work done(if piece rated)</th>
-        <th rowspan="2">No. of payable dayss</th>
+        <th rowspan="2">No. of payable days</th>
         <th rowspan="2">Name of N&amp;F Holiday for which wages have been paid</th>
         <th colspan="10" style="text-align: center;">Earned wages and other allowances</th>
         <th rowspan="2">Total</th>
@@ -311,7 +311,7 @@ try {
             <td><?= htmlspecialchars($row['day_29'] ?? '') ?></td>
             <td><?= htmlspecialchars($row['day_30'] ?? '') ?></td>
             <td><?= htmlspecialchars($row['day_31'] ?? '') ?></td>
-            <td><?= htmlspecialchars($row['total_present_days'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['paid_days'] ?? '') ?></td>
             <td>
               <?php
               $nh_amount = (float) ($row['nh_fh_week_off_wages'] ?? 0);

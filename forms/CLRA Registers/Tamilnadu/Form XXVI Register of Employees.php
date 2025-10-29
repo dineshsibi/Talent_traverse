@@ -291,7 +291,7 @@ try {
             <td><?= htmlspecialchars($row['day_29'] ?? '') ?></td>
             <td><?= htmlspecialchars($row['day_30'] ?? '') ?></td>
             <td><?= htmlspecialchars($row['day_31'] ?? '') ?></td>
-            <td><?= htmlspecialchars($row['paid_days'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['total_present_days'] ?? '') ?></td>
             <td colspan="2"></td>
             <td>-</td>
             <td colspan="2"></td>

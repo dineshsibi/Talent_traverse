@@ -207,14 +207,26 @@ try {
                     <?php
                     $pf = (float) ($row['pf'] ?? 0);
                     $vpf = (float) ($row['vpf'] ?? 0);
+                    $gross = (float)($row['earned_gross'] ?? 0);
+                    $basic = (float)($row['basic'] ?? 0);
+                    $da = (float)($row['da'] ?? 0);
+                    $over_time = (float)($row['over_time_wages'] ?? 0);
+                    $hra = (float)($row['hra'] ?? 0);
+                    $total_deductions = (float)($row['total_deductions'] ?? 0);
+                    $esi = (float)($row['esi'] ?? 0);
+                    $p_tax = (float)($row['p_tax'] ?? 0);
+                    $lwf = (float)($row['lwf'] ?? 0);
+
                     $calculation1 = $pf + $vpf;
+                    $other_allowances = $gross - $basic + $da + $hra + $over_time;
+                    $other_deductions = $total_deductions - $esi + $vpf + $pf + $lwf + $p_tax;
                     ?>
                     <tr>
                         <td><?= $i++ ?></td>
                         <td><?= htmlspecialchars($row['employee_name'] ?? '') ?></td>
                         <td><?= htmlspecialchars($row['employee_code'] ?? '') ?></td>
                         <td><?= htmlspecialchars($row['designation'] ?? '') ?></td>
-                        <td><?= htmlspecialchars($row['paid_days'] ?? '') ?></td>
+                        <td><?= htmlspecialchars($row['total_present_days'] ?? '') ?></td>
                         <td><?= htmlspecialchars($row['rate_of_wage'] ?? '') ?></td>
                         <td><?= htmlspecialchars($row['total_present_days'] ?? '') ?></td>
                         <td>NIL</td>
@@ -222,14 +234,14 @@ try {
                         <td><?= htmlspecialchars($row['da'] ?? '') ?></td>
                         <td><?= htmlspecialchars($row['hra'] ?? '') ?></td>
                         <td><?= htmlspecialchars($row['over_time_wages'] ?? '') ?></td>
-                        <td>NIL</td>
+                        <td><?= htmlspecialchars($other_allowances ?? '') ?></td>
                         <td><?= htmlspecialchars($row['earned_gross'] ?? '') ?></td>
                         <td><?= htmlspecialchars($row['esi'] ?? '') ?></td>
                         <td><?= number_format($calculation1, 2) ?></td>
                         <td>NIL</td>
                         <td><?= htmlspecialchars($row['lwf'] ?? '') ?></td>
                         <td><?= htmlspecialchars($row['p_tax'] ?? '') ?></td>
-                        <td><?= htmlspecialchars($row['other_deductions'] ?? '') ?></td>
+                        <td><?= htmlspecialchars($other_deductions ?? '') ?></td>
                         <td><?= htmlspecialchars($row['total_deductions'] ?? '') ?></td>
                         <td><?= htmlspecialchars($row['net_salary'] ?? '') ?></td>
                         <td>Bank Transfer</td>

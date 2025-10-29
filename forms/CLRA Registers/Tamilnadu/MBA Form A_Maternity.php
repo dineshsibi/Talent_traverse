@@ -212,7 +212,7 @@ try {
                 </tr>
                 <tr>
                     <td><?= htmlspecialchars($month . ' - ' . $year) ?></td>
-                    <td><?= htmlspecialchars($row['paid_days'] ?? '') ?></td>
+                    <td><?= htmlspecialchars($row['total_present_days'] ?? '') ?></td>
                     <td>0</td>
                     <td><?= htmlspecialchars($row['ml_days_count'] ?? '0') ?></td>
                 </tr>
